@@ -687,7 +687,7 @@ async function useSkill(u, ownSide, foeSide){
     case 'dodge':  alive(ownSide).forEach(a=>{a.dodge=true; auraOn(a,'rgba(201,169,110,.55)'); fxOn(a,'🎯');}); log(`　🎯 全隊預判，閃避各自下一次攻擊`,'sk'); break;
     case 'summon': {
       allies = allies.filter(a=>!(a.id==='helper' && !a.alive));            // 清掉死掉的小雞
-      if(allies.filter(a=>a.id==='helper').length < 4){                     // 場上最多 4 隻（肉盾牆）
+      if(allies.filter(a=>a.id==='helper').length < 3){                     // 場上最多 3 隻（還原）
         const helper=mkFoeAlly(); allies.push(helper); tagUids([helper]);
         log(`　🎁 召喚援軍 ${helper.emoji} ${helper.name}`,'he');
       } else { log(`　🎁 小幫手已經滿場了`,'he'); }
@@ -702,9 +702,8 @@ async function useSkill(u, ownSide, foeSide){
   paintAll();
 }
 function mkFoeAlly(){
-  const n=Math.max(1,curWave||1), hhp=Math.round(45*(1+0.18*(n-1))), hat=Math.round(14*(1+0.10*(n-1)));   // 小幫手隨波長壯，後期才撐得住當肉盾
-  return {id:'helper',name:'促銷小幫手',job:'',emoji:'🐣',side:'ally',maxHp:hhp,hp:hhp,baseAtk:hat,atk:hat,spd:11,
-    skill:null,cdLeft:99,cd:99,shield:0,dodge:0,overheat:false,rally:0,alive:true,cry:'',_firstHit:!!perks.firstStrikeCrit};
+  return {id:'helper',name:'促銷小幫手',job:'',emoji:'🐣',side:'ally',maxHp:45,hp:45,baseAtk:14,atk:14,spd:11,
+    skill:null,cdLeft:99,cd:99,shield:0,dodge:0,overheat:false,rally:0,alive:true,cry:'',_firstHit:!!perks.firstStrikeCrit};   // 還原：不縮放（Sasha 本就是壟斷隊一員，縮放會 imba）
 }
 
 // 回合開始結算狀態：中毒掉血、易傷衰減、凍結跳過。回傳 true = 這回合不行動
