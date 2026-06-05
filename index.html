@@ -323,6 +323,7 @@
 /* ---------- 資料：每個村民 = 一個 villagers/*.json ---------- */
 const SKILLS = {
   shield:     {name:"風險對沖", icon:"🛡️", desc:"全隊獲得護盾，吸收下一次傷害", kind:"util"},
+  taunt:      {name:"挺身",     icon:"🦺", desc:"嘲諷所有敵人吸引火力到自己，獲得大護盾並大幅減傷", kind:"util"},
   freeze:     {name:"罰站",     icon:"❄️", desc:"凍結一個敵人，讓牠罰站 2 回合", kind:"util"},
   assassinate:{name:"自動化連擊",icon:"🗡️", desc:"連續攻擊 3 次，高爆擊；爆擊疊『殺意』", kind:"atk"},
   dodge:      {name:"分鏡預判", icon:"🎯", desc:"閃避敵人的下一次攻擊", kind:"util"},
@@ -484,7 +485,7 @@ function mkAlly(v){
   return {...v, side:'ally', maxHp:v.hp, hp:v.hp, baseAtk:v.atk, atk:v.atk,
     crit:(typeof v.crit==='number'?v.crit:0.08), critDmg:1.9, bloodlust:0,
     poison:0, poisonT:0, frozen:0, vuln:0, vulnT:0, regen:0, regenT:0,
-    cdLeft:0, cd:3, shield:0, dodge:false, overheat:false, rally:0, alive:true};
+    cdLeft:0, cd:3, shield:0, dodge:false, overheat:false, rally:0, taunt:0, alive:true};
 }
 /* 無盡衝波：敵人隨波數變強，每 5 波一個魔王 */
 const FOE_POOL = [
@@ -493,11 +494,11 @@ const FOE_POOL = [
   {name:"病毒",       emoji:"🦠",hp:78,atk:16,spd:8},
   {name:"記憶體洩漏", emoji:"💧",hp:92,atk:14,spd:5},
 ];
-function scale(base,n){ return {...base, hp:Math.round(base.hp*(1+0.16*(n-1))), atk:Math.round(base.atk*(1+0.10*(n-1))) }; }
+function scale(base,n){ return {...base, hp:Math.round(base.hp*(1+0.12*(n-1))), atk:Math.round(base.atk*(1+0.08*(n-1))) }; }
 function genWave(n){
   let raw=[];
   if(n%5===0){
-    raw.push({name:"大魔王 BUG",emoji:"👾",hp:Math.round(240*(1+0.14*n)),atk:Math.round(20*(1+0.10*n)),spd:9});
+    raw.push({name:"大魔王 BUG",emoji:"👾",hp:Math.round(190*(1+0.09*n)),atk:Math.round(16*(1+0.07*n)),spd:9});
     const adds=Math.min(2,Math.floor(n/10)+1);
     for(let i=0;i<adds;i++) raw.push(scale(FOE_POOL[2],n));
   } else {
@@ -532,7 +533,7 @@ const SPRITES={
 const BASEPAL={'.':null,'O':'#181226','H':'#5a3a2a','S':'#f3cda0','W':'#ffffff','F':'#39394d','k':'#101820',
   'B':'#C9A96E','b':'#a6843a','g':'#62c06e','d':'#3c8a49','y':'#f5d44a','r':'#f0922e'};
 function darken(hex,f){ const n=parseInt(hex.slice(1),16); const r=Math.round(((n>>16)&255)*f),g=Math.round(((n>>8)&255)*f),b=Math.round((n&255)*f); return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1); }
-const SKILLCOL={shield:'#5e8fc8',freeze:'#79b6e0',assassinate:'#6f8fb5',dodge:'#e89ac0',heal:'#6abf8a',summon:'#e0a060',corrode:'#8bbf5a',empower:'#C9A96E',hypnosis:'#9b6dd6',overclock:'#e0704f',regen:'#5ec8a0',armorbreak:'#8a8f9e'};
+const SKILLCOL={shield:'#5e8fc8',taunt:'#6b87b8',freeze:'#79b6e0',assassinate:'#6f8fb5',dodge:'#e89ac0',heal:'#6abf8a',summon:'#e0a060',corrode:'#8bbf5a',empower:'#C9A96E',hypnosis:'#9b6dd6',overclock:'#e0704f',regen:'#5ec8a0',armorbreak:'#8a8f9e'};
 function unitSprite(u){
   if(u.side==='foe'){
     const c=u.emoji==='🦠'?'#8ad08a':u.emoji==='💧'?'#5ec8e0':u.emoji==='👾'?'#c98ad0':u.emoji==='❌'?'#ff6d7a':'#9ed06a';
@@ -579,6 +580,7 @@ function paint(u){
   u.el.classList.toggle('dead',!u.alive);
   let b='';
   if(u.shield>0) b+=`<span class="badge">🛡️${u.shield}</span>`;
+  if(u.taunt>0) b+=`<span class="badge">🦺${u.taunt}</span>`;
   if(u.bloodlust>0) b+=`<span class="badge buff">🗡️${u.bloodlust}</span>`;
   if(u.rally>0) b+=`<span class="badge buff">📈</span>`;
   if(u.regen>0) b+=`<span class="badge buff">➕${u.regenT}</span>`;
@@ -618,6 +620,7 @@ async function dealDamage(target, amount, opt={}){
   if(!target||!target.alive) return 0;
   if(target.dodge){ target.dodge=false; pop(target,'閃避','miss'); fxOn(target,'🎯'); log(`　${target.emoji} ${target.name} <span class="sk">閃避</span>了攻擊`); paintAll(); return 0; }
   let dmg=Math.round(amount * (target.vuln>0?(1+(0.15+(perks.vulnBonus||0))*target.vuln):1));
+  if(target.taunt>0) dmg=Math.round(dmg*0.5);   // 嘲諷中的坦克：減傷 50%
   let dealt=0;
   if(target.shield>0){
     const absorbed=Math.min(target.shield,dmg); target.shield-=absorbed; dmg-=absorbed;
@@ -658,11 +661,12 @@ async function basicAttack(u, foesArr, mult=1, copt={}){
 async function useSkill(u, ownSide, foeSide){
   const sk=SKILLS[u.skill];
   actFx(u); castFx(u); shockAt(u); tintFlash('rgba(201,169,110,.4)');
-  sfx({freeze:'freeze',heal:'heal',regen:'heal',summon:'summon',hypnosis:'freeze',shield:'heal'}[u.skill]||'skill');
+  sfx({freeze:'freeze',heal:'heal',regen:'heal',summon:'summon',hypnosis:'freeze',shield:'heal',taunt:'heal'}[u.skill]||'skill');
   await banner(sk.icon, `${u.name}　${sk.name}！`, sk.desc);
   log(`✦ ${u.emoji} <b>${u.name}</b> 發動 <span class="sk">${sk.icon} ${sk.name}</span>`,'sk');
   switch(u.skill){
     case 'shield': alive(ownSide).forEach(a=>{a.shield+=26; auraOn(a,'rgba(94,200,224,.55)'); fxOn(a,'🛡️');}); break;
+    case 'taunt': { u.taunt=3; u.shield+=Math.round(u.maxHp*0.5); auraOn(u,'rgba(110,135,184,.65)'); fxOn(u,'🦺'); pop(u,'嘲諷！','miss'); log(`　🦺 ${u.emoji} ${u.name} 挺身嘲諷，火力都往她身上、且傷害砍半`,'sk'); break; }
     case 'freeze': { const fs=alive(foeSide); const tgt=fs.sort((a,b)=>b.atk-a.atk)[0]; if(tgt){tgt.frozen=2; tgt.atk=Math.round(tgt.baseAtk*0.85); auraOn(tgt,'rgba(120,180,255,.6)'); fxOn(tgt,'❄️'); pop(tgt,'❄️凍結','miss'); log(`　❄️ ${tgt.emoji} ${tgt.name} 被罰站 2 回合`,'sk');} break; }
     case 'heal':   { const t=lowestHp(ownSide); if(t){const h=Math.round(t.maxHp*0.32); t.hp=Math.min(t.maxHp,t.hp+h); auraOn(t,'rgba(74,208,125,.5)'); fxOn(t,'➕'); pop(t,'+'+h,'heal'); log(`　💧 治療 ${t.emoji} ${t.name} +${h}`,'he');} break; }
     case 'empower': alive(ownSide).forEach(a=>{a.rally=2; a.crit=Math.min(0.9,(a.crit||0)+0.22); auraOn(a,'rgba(201,169,110,.5)'); fxOn(a,'📈');}); log(`　📈 全隊 攻擊↑ 爆擊↑`,'sk'); break;
@@ -722,7 +726,8 @@ async function enemyTurn(u){
   if(await tickStatus(u)) return;
   if(!u.alive||alive(allies).length===0) return;
   actFx(u);
-  const t=rand(allies);
+  const taunters=alive(allies).filter(a=>a.taunt>0);
+  const t=taunters.length?taunters[0]:rand(allies);   // 有人嘲諷就打他
   log(`${u.emoji} ${u.name} 攻擊 ${t.emoji} ${t.name}`,'dm');
   lungeFx(u); await sleep(165);
   await dealDamage(t, u.atk*(0.9+Math.random()*0.25));
@@ -758,12 +763,12 @@ function pickBoons(){
   return out.map(b=>({b, syn:b.tags.some(t=>teamSkills.has(t))}));
 }
 function renderBoonBar(){ const el=$('#boonbar'); if(el) el.innerHTML=runBoons.map(b=>`<span class="bn" title="${b.name}：${b.desc}">${b.icon}</span>`).join(''); }
-function offerBoons(){
+function offerBoons(heading){
   return new Promise(resolve=>{
     const picks=pickBoons();
     if(picks.length===0){ resolve(); return; }
     const box=$('#boonpick');
-    box.innerHTML=`<h3>👑 魔王已倒下！</h3><div class="bsub">選一個強化，整場有效。挑合拍的搭配，越衝越遠。</div>
+    box.innerHTML=`<h3>${heading||'👑 魔王已倒下！'}</h3><div class="bsub">選一個強化，整場有效。挑合拍的搭配，越衝越遠。</div>
       <div class="boonrow">${picks.map((p,i)=>`<div class="booncard${p.syn?' syn':''}" data-i="${i}">
         <div class="bi">${p.b.icon}</div><div class="bnm">${p.b.name}</div><div class="bds">${p.b.desc}</div>
         ${p.syn?'<span class="btag">✦ 與你的隊伍合拍</span>':''}</div>`).join('')}</div>`;
@@ -781,6 +786,7 @@ function offerBoons(){
 let roundN=0;
 async function runBattle(){
   busy=true; $('#result').className='result';
+  await offerBoons('🚩 出發前，先選一個強化');   // 開場強化（每場保底先選一個）
   while(alive(allies).length>0){
     curWave++;
     foes = genWave(curWave); tagUids(foes);
@@ -797,7 +803,7 @@ async function runBattle(){
         else await enemyTurn(u);
       }
       // end of round upkeep: rally decay
-      alive(allies).forEach(a=>{ if(a.rally>0){a.rally--; if(a.rally===0)pop(a,'攻↑結束','miss');} });
+      alive(allies).forEach(a=>{ if(a.rally>0){a.rally--; if(a.rally===0)pop(a,'攻↑結束','miss');} if(a.taunt>0)a.taunt--; });
       paintAll();
     }
     if(alive(allies).length===0){ return endBattle(curWave-1); }
