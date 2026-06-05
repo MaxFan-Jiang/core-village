@@ -533,7 +533,7 @@ function mkFoe(f){ return {...f, side:'foe', maxHp:f.hp, hp:f.hp, atk:f.atk, bas
 let allies=[], foes=[], curWave=0, busy=false;
 /* roguelite 強化：打完魔王 3 選 1，效果累積整場 */
 let perks={}, runBoons=[]; const takenBoons=new Set();
-function resetPerks(){ perks={lifesteal:0,critChain:false,teamCrit:0,critDmg:0,atkMul:1,killHeal:0,poisonMul:0,vulnBonus:0,firstStrikeCrit:false,waveHeal:0,berserk:false,critRamp:false,weaken:false,dmgReduce:0,ironStacks:0}; }
+function resetPerks(){ perks={lifesteal:0,critChain:false,teamCrit:0,critDmg:0,atkMul:1,killHeal:0,poisonMul:0,vulnBonus:0,firstStrikeCrit:false,waveHeal:0,berserk:false,critRamp:false,weaken:false,dmgReduce:0,ironStacks:0,atkStacks:0}; }
 resetPerks();
 // 浴血：敵人倒下時全隊回血（隨擊殺放大，餵血甲消耗流）
 function killHeal(){ if(perks.killHeal<=0) return; const list=alive(allies); list.forEach(a=>{ a.hp=Math.min(a.maxHp,a.hp+Math.round(a.maxHp*perks.killHeal)); }); if(list[0]) pop(list[0],'🧛','heal'); }
@@ -663,7 +663,7 @@ async function basicAttack(u, foesArr, mult=1, copt={}){
   const overflowBlood=Math.max(0, blood - Math.ceil(Math.max(0,0.97-critFloor)/0.06));   // 殺意溢出：爆率已滿後多餘的殺意層數
   const crit=(perks.firstStrikeCrit&&u._firstHit)?true:(Math.random()<critChance);
   if(u._firstHit) u._firstHit=false;
-  let atk=u.atk*(u.rally>0?1.25:1)*(perks.atkMul||1)*mult*(1+0.08*overflowBlood);   // 殺意溢出 → 每層 +8% 攻擊（爆率滿後不再浪費、轉成成長）
+  let atk=u.atk*(u.rally>0?1.25:1)*(perks.atkMul||1)*mult*(1+Math.min(0.6,0.08*overflowBlood));   // 殺意溢出 → +8%/層、封頂 +60%（爆率滿後轉攻擊、邊際效應）
   if(perks.berserk) atk*=1+0.4*(1-Math.max(0,u.hp)/u.maxHp);
   const base=atk*(0.9+Math.random()*0.25);
   const cdmg=(u.critDmg||1.8)+(perks.critDmg||0);
@@ -774,8 +774,8 @@ const BOONS=[
   {id:'lifesteal', icon:'🩸', name:'吸血',     desc:'每次普攻回復造成傷害的 25%',     tags:['assassinate','overclock','armorbreak'], apply:()=>perks.lifesteal+=0.25},
   {id:'critchain', icon:'⚡', name:'爆擊連鎖', desc:'爆擊時追加一次攻擊',             tags:['assassinate','empower','overclock'], once:true, apply:()=>perks.critChain=true},
   {id:'edge',      icon:'🗡️', name:'嗜血',     desc:'全隊爆擊率 +12%',               tags:['assassinate','empower'], apply:()=>perks.teamCrit+=0.12},
-  {id:'heavy',     icon:'💥', name:'重擊',     desc:'爆擊傷害 +40%',                 tags:['assassinate','overclock'], apply:()=>perks.critDmg+=0.4},
-  {id:'allatk',    icon:'📈', name:'全軍突擊', desc:'全隊攻擊力 +20%',               tags:[], apply:()=>perks.atkMul*=1.2},
+  {id:'heavy',     icon:'💥', name:'重擊',     desc:'爆擊傷害 +40%（封頂 +160%）',   tags:['assassinate','overclock'], apply:()=>perks.critDmg=Math.min(1.6,(perks.critDmg||0)+0.4)},
+  {id:'allatk',    icon:'📈', name:'全軍突擊', desc:'全隊攻擊力提升（邊際遞減、趨近 +80%）', tags:[], apply:()=>{ const n=(perks.atkStacks||0)+1; perks.atkStacks=n; perks.atkMul=1+0.8*(1-Math.pow(0.6,n)); }},
   {id:'iron',      icon:'🛡️', name:'鋼鐵之軀', desc:'全隊血量上限提升（邊際遞減、趨近 +50%、並回血）', tags:['shield','heal','regen'], apply:()=>{ const n=(perks.ironStacks||0)+1; perks.ironStacks=n; const prev=0.5*(1-Math.pow(0.55,n-1)), cur=0.5*(1-Math.pow(0.55,n)); alive(allies).forEach(a=>{ const add=Math.round((a.baseHp||a.maxHp)*(cur-prev)); a.maxHp+=add; a.hp+=add; }); }},
   {id:'bloodheal', icon:'🧛', name:'浴血',     desc:'每當敵人倒下，全隊回復 7% 血量', tags:['shield','heal','regen','summon','assassinate'], apply:()=>perks.killHeal+=0.07},
   {id:'venom',     icon:'☠️', name:'劇毒',     desc:'中毒每層傷害 +60%',             tags:['corrode'], apply:()=>perks.poisonMul+=0.6},
