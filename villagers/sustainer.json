@@ -1,0 +1,11 @@
+{
+  "id": "sustainer",
+  "name": "數位 IC 工程師",
+  "job": "半導體 · 數位 IC",
+  "emoji": "🔋",
+  "hp": 100,
+  "atk": 15,
+  "spd": 9,
+  "skill": "regen",
+  "cry": "進低功耗模式，慢慢回血。"
+}

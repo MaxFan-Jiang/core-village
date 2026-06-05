@@ -1,0 +1,12 @@
+{
+  "name": "core-village",
+  "version": "0.1.0",
+  "private": true,
+  "description": "芯覺村・村民出戰 — CPN 共學夥伴共建的像素隊伍自走棋。每人 PR 一個 villagers/<id>.json 角色。",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-villagers.mjs",
+    "check": "node scripts/build-villagers.mjs --check"
+  },
+  "license": "MIT"
+}

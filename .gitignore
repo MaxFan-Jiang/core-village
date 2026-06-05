@@ -1,0 +1,6 @@
+# 自動產生（CI 部署時重建，不進版控，避免多人同時 PR 撞檔）
+villagers.generated.js
+
+node_modules/
+.DS_Store
+*.log

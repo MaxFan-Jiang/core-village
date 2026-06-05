@@ -1,0 +1,11 @@
+{
+  "id": "overclocker",
+  "name": "IC 設計工程師",
+  "job": "半導體 · IC 設計",
+  "emoji": "⚡",
+  "hp": 82,
+  "atk": 28,
+  "spd": 13,
+  "skill": "overclock",
+  "cry": "電路拉到極限，超頻轟下去。"
+}
