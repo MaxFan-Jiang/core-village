@@ -325,16 +325,16 @@ const SKILLS = {
   shield:     {name:"風險對沖", icon:"🛡️", desc:"全隊獲得護盾，吸收下一次傷害", kind:"util"},
   taunt:      {name:"挺身",     icon:"🦺", desc:"嘲諷所有敵人吸引火力到自己，獲得大護盾並大幅減傷", kind:"util"},
   freeze:     {name:"罰站",     icon:"❄️", desc:"凍結一個敵人，讓牠罰站 2 回合", kind:"util"},
-  assassinate:{name:"自動化連擊",icon:"🗡️", desc:"連續攻擊 3 次，高爆擊；爆擊疊『殺意』", kind:"atk"},
+  assassinate:{name:"自動化連擊",icon:"🗡️", desc:"連擊 3 個敵人，高爆擊；爆擊疊『殺意』", kind:"atk"},
   dodge:      {name:"分鏡預判", icon:"🎯", desc:"閃避敵人的下一次攻擊", kind:"util"},
   heal:       {name:"散熱模組", icon:"💧", desc:"治療血量最低的隊友", kind:"util"},
   summon:     {name:"檔期促銷", icon:"🎁", desc:"召喚一個援軍小幫手", kind:"util"},
-  corrode:    {name:"蝕刻",     icon:"☠️", desc:"攻擊並附加『中毒』與『易傷』，可疊層", kind:"atk"},
+  corrode:    {name:"蝕刻",     icon:"☠️", desc:"攻擊，並讓全體敵人中毒＋易傷，可疊層", kind:"atk"},
   empower:    {name:"市場賦能", icon:"📈", desc:"全隊攻擊力與爆擊率提升", kind:"util"},
   hypnosis:   {name:"全場催眠", icon:"🌀", desc:"凍結所有敵人 1 回合，並使其『易傷』", kind:"util"},
-  overclock:  {name:"超頻",     icon:"⚡", desc:"這次 2.3 倍爆發傷害，下回合過熱休息", kind:"atk"},
+  overclock:  {name:"超頻",     icon:"⚡", desc:"對主目標 2.3 倍爆發，餘波炸傷全場；下回合過熱", kind:"atk"},
   regen:      {name:"節能續航", icon:"➕", desc:"全隊獲得『再生』，3 回合內每回合回血", kind:"util"},
-  armorbreak: {name:"精密拆解", icon:"🔩", desc:"重擊一個敵人並疊 2 層『易傷』", kind:"atk"},
+  armorbreak: {name:"精密拆解", icon:"🔩", desc:"重擊一個敵人；殘血直接拆解（即死，魔王除外），否則疊 2 層易傷", kind:"atk"},
 };
 /* 村民資料由 build 產生（window.__VILLAGERS__，聚合自 villagers/*.json）。原本寫死的陣列已抽走。*/
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -498,7 +498,7 @@ function scale(base,n){ return {...base, hp:Math.round(base.hp*(1+0.12*(n-1))), 
 function genWave(n){
   let raw=[];
   if(n%5===0){
-    raw.push({name:"大魔王 BUG",emoji:"👾",hp:Math.round(190*(1+0.09*n)),atk:Math.round(16*(1+0.07*n)),spd:9});
+    raw.push({name:"大魔王 BUG",emoji:"👾",hp:Math.round(260*(1+0.13*n)),atk:Math.round(20*(1+0.09*n)),spd:9});
     const adds=Math.min(2,Math.floor(n/10)+1);
     for(let i=0;i<adds;i++) raw.push(scale(FOE_POOL[2],n));
   } else {
@@ -678,12 +678,12 @@ async function useSkill(u, ownSide, foeSide){
         log(`　🎁 召喚援軍 ${helper.emoji} ${helper.name}`,'he');
       } else { log(`　🎁 小幫手已經滿場了`,'he'); }
       buildStage(); fxOn(u,'🎁'); break; }
-    case 'assassinate': for(let i=0;i<3;i++){ if(alive(foeSide).length===0)break; await basicAttack(u,foeSide,0.8); await sleep(120);} break;
-    case 'corrode': { const t=lowestHp(foeSide); await basicAttack(u,foeSide,1); if(t&&t.alive){ t.poison=(t.poison||0)+2; t.poisonT=3; t.vuln=(t.vuln||0)+1; t.vulnT=3; auraOn(t,'rgba(150,220,120,.55)'); fxOn(t,'☠️'); log(`　☠️ ${t.emoji} ${t.name} 中毒×${t.poison} 易傷×${t.vuln}`,'sk'); } break; }
+    case 'assassinate': for(let i=0;i<3;i++){ const fs=alive(foeSide); if(!fs.length)break; fs.sort((a,b)=>a.hp-b.hp); await basicAttack(u,[fs[i%fs.length]],0.85); await sleep(110);} break;   // 連擊掃 3 個不同敵人
+    case 'corrode': { await basicAttack(u,foeSide,1); alive(foeSide).forEach(t=>{ t.poison=(t.poison||0)+1; t.poisonT=3; t.vuln=(t.vuln||0)+1; t.vulnT=3; auraOn(t,'rgba(150,220,120,.5)'); fxOn(t,'☠️'); }); log(`　☠️ 蝕刻液濺到全場，全體中毒＋易傷`,'sk'); break; }
     case 'hypnosis': alive(foeSide).forEach(f=>{ f.frozen=Math.max(f.frozen,1); f.vuln=(f.vuln||0)+1; f.vulnT=3; auraOn(f,'rgba(155,109,214,.6)'); fxOn(f,'🌀'); }); log(`　🌀 全場催眠！敵人罰站＋易傷`,'sk'); break;
-    case 'overclock': await basicAttack(u,foeSide,2.3); u.overheat=true; break;
+    case 'overclock': { const main=lowestHp(foeSide); await basicAttack(u,foeSide,2.3); shake(true); for(const f of alive(foeSide)){ if(f===main)continue; fxOn(f,'⚡'); await dealDamage(f, Math.round(u.atk*1.1), {}); } log(`　⚡ 超頻過載，餘波炸傷全場`,'sk'); u.overheat=true; break; }   // 主目標爆發＋餘波 AoE
     case 'regen': alive(ownSide).forEach(a=>{ a.regen=Math.round(a.maxHp*0.08); a.regenT=3; auraOn(a,'rgba(94,200,160,.5)'); fxOn(a,'➕'); }); log(`　➕ 全隊再生（3 回合）`,'sk'); break;
-    case 'armorbreak': { const t=lowestHp(foeSide); await basicAttack(u,foeSide,1.4); if(t&&t.alive){ t.vuln=(t.vuln||0)+2; t.vulnT=3; auraOn(t,'rgba(138,143,158,.6)'); fxOn(t,'🔩'); log(`　🔩 ${t.emoji} ${t.name} 易傷×${t.vuln}`,'sk'); } break; }
+    case 'armorbreak': { const t=lowestHp(foeSide); await basicAttack(u,foeSide,1.4); if(t&&t.alive){ if(t.hp < t.maxHp*0.18 && t.emoji!=='👾'){ t.hp=0; t.alive=false; impactFx(t,'💥'); pop(t,'拆解！','crit'); sfx('ko'); log(`　🔩 ${t.emoji} ${t.name} 被精密拆解（即死）`,'sk'); if(t.side==='foe') killHeal(); } else { t.vuln=(t.vuln||0)+2; t.vulnT=3; auraOn(t,'rgba(138,143,158,.6)'); fxOn(t,'🔩'); log(`　🔩 ${t.emoji} ${t.name} 易傷×${t.vuln}`,'sk'); } } break; }   // 殘血直接拆解(即死，魔王除外)
   }
   paintAll();
 }
