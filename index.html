@@ -210,6 +210,23 @@
   .npcinner .nstory{font-size:13px;color:#c7cce0;line-height:1.7;margin:8px 0}
   .npcinner .njoin{font-size:12.5px;color:var(--gold-hi);background:rgba(201,169,110,.08);border:1px solid rgba(201,169,110,.28);border-radius:8px;padding:7px 10px;margin:8px 0}
   .npcinner .ncry{font-size:12px;color:#9aa1bd;font-style:italic;margin:6px 0 12px}
+
+  /* 強化抽選（打完魔王 3 選 1）*/
+  .boonbar{display:flex;gap:5px;justify-content:center;flex-wrap:wrap;margin:0 0 10px}
+  .boonbar .bn{font-size:15px;background:rgba(201,169,110,.12);border:1px solid rgba(201,169,110,.35);border-radius:50px;padding:2px 9px;color:var(--gold);cursor:default}
+  .boonpick{position:absolute;inset:0;background:rgba(6,8,15,.92);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:30;border-radius:18px;padding:18px}
+  .boonpick.show{display:flex;animation:fadein .25s}
+  .boonpick h3{font-family:var(--serif);font-size:22px;color:var(--gold);margin-bottom:4px;text-align:center}
+  .boonpick .bsub{color:#9aa1bd;font-size:13px;margin-bottom:16px;text-align:center}
+  .boonrow{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;max-width:560px}
+  .booncard{width:158px;background:linear-gradient(160deg,var(--navy2),var(--navy3));border:2px solid var(--line);border-radius:14px;padding:16px 13px;cursor:pointer;transition:.18s;text-align:center}
+  .booncard:hover{border-color:var(--gold);transform:translateY(-4px);box-shadow:0 12px 30px rgba(0,0,0,.45)}
+  .booncard.syn{border-color:var(--gold-deep);background:linear-gradient(160deg,#1c2438,#22305a)}
+  .booncard .bi{font-size:30px;filter:drop-shadow(0 3px 5px rgba(0,0,0,.4))}
+  .booncard .bnm{font-weight:700;font-size:15px;margin:7px 0 4px;color:#fff}
+  .booncard .bds{font-size:12.5px;color:#bcc3dd;line-height:1.55}
+  .booncard .btag{margin-top:9px;font-size:11px;color:var(--gold);background:rgba(201,169,110,.12);border-radius:50px;padding:2px 9px;display:inline-block}
+  @media(max-width:680px){.booncard{width:46%}}
   #cf{position:fixed;inset:0;pointer-events:none;z-index:50}
   @media(max-width:680px){.sides{grid-template-columns:1fr;gap:10px}.vs{display:none}.units.foe{align-items:stretch}.units.foe .unit{margin-left:0}}
 </style>
@@ -269,6 +286,7 @@
   <div id="battle" class="panel">
     <div class="ttl"><span class="n">2</span>戰鬥<span class="meta" id="speedTag" style="cursor:pointer">⏩ 速度 x1</span></div>
     <div class="wavebar" id="wavebar">第 1 波</div>
+    <div class="boonbar" id="boonbar"></div>
     <div class="arena" id="arena">
       <div class="tint" id="arenaTint"></div>
       <div class="sides">
@@ -278,6 +296,7 @@
       </div>
       <div class="skbanner" id="skb"></div>
       <div class="result" id="result"></div>
+      <div class="boonpick" id="boonpick"></div>
     </div>
     <div class="log" id="log"></div>
     <div class="controls">
@@ -418,6 +437,10 @@ function mkFoe(f){ return {...f, side:'foe', maxHp:f.hp, hp:f.hp, atk:f.atk, bas
   shield:0, dodge:false, alive:true, weaken:1}; }
 
 let allies=[], foes=[], curWave=0, busy=false;
+/* roguelite 強化：打完魔王 3 選 1，效果累積整場 */
+let perks={}, runBoons=[]; const takenBoons=new Set();
+function resetPerks(){ perks={lifesteal:0,critChain:false,teamCrit:0,critDmg:0,atkMul:1,thorns:0,poisonMul:0,vulnBonus:0,firstStrikeCrit:false,waveHeal:0,berserk:false,critRamp:false}; }
+resetPerks();
 
 /* ---------- 渲染戰場：建一次、就地更新（動畫才不會被洗掉）---------- */
 let uidc=0;
@@ -514,32 +537,43 @@ function lowestHp(arr){ return alive(arr).sort((a,b)=>a.hp-b.hp)[0]; }
 function rand(arr){ const a=alive(arr); return a[Math.floor(Math.random()*a.length)]; }
 
 async function dealDamage(target, amount, opt={}){
-  if(!target||!target.alive) return;
-  if(target.dodge){ target.dodge=false; pop(target,'閃避','miss'); fxOn(target,'🎯'); log(`　${target.emoji} ${target.name} <span class="sk">閃避</span>了攻擊`); paintAll(); return; }
-  let dmg=Math.round(amount * (target.vuln>0?(1+0.15*target.vuln):1));
+  if(!target||!target.alive) return 0;
+  if(target.dodge){ target.dodge=false; pop(target,'閃避','miss'); fxOn(target,'🎯'); log(`　${target.emoji} ${target.name} <span class="sk">閃避</span>了攻擊`); paintAll(); return 0; }
+  let dmg=Math.round(amount * (target.vuln>0?(1+(0.15+(perks.vulnBonus||0))*target.vuln):1));
+  let dealt=0;
   if(target.shield>0){
     const absorbed=Math.min(target.shield,dmg); target.shield-=absorbed; dmg-=absorbed;
     pop(target,'🛡️-'+absorbed,'miss');
   }
   if(dmg>0){
-    target.hp-=dmg; hurtFx(target); impactFx(target, opt.crit?'⚡':'💥'); flashTarget(target);
+    target.hp-=dmg; dealt=dmg; hurtFx(target); impactFx(target, opt.crit?'⚡':'💥'); flashTarget(target);
     pop(target,'-'+dmg, opt.crit?'crit':'dmg');
     shake(opt.crit||opt.big);
     await sleep(opt.crit?95:55);   // 打擊頓挫 hitstop
   }
   if(target.hp<=0){ target.hp=0; target.alive=false; log(`　💀 ${target.emoji} ${target.name} 倒下`,'ko'); }
   paintAll();
+  return dealt;
 }
 
-async function basicAttack(u, foesArr, mult=1){
+async function basicAttack(u, foesArr, mult=1, copt={}){
   const t=lowestHp(foesArr); if(!t) return;
-  const critChance=Math.min(0.95,(u.crit||0)+(u.bloodlust||0)*0.06);
-  const crit=Math.random()<critChance;
-  const base=u.atk*(u.rally>0?1.25:1)*(0.9+Math.random()*0.25)*mult;
+  const critChance=Math.min(0.97,(u.crit||0)+(u.bloodlust||0)*0.06+(perks.teamCrit||0));
+  const crit=(perks.firstStrikeCrit&&u._firstHit)?true:(Math.random()<critChance);
+  if(u._firstHit) u._firstHit=false;
+  let atk=u.atk*(u.rally>0?1.25:1)*(perks.atkMul||1)*mult;
+  if(perks.berserk) atk*=1+0.4*(1-Math.max(0,u.hp)/u.maxHp);
+  const base=atk*(0.9+Math.random()*0.25);
+  const cdmg=(u.critDmg||1.8)+(perks.critDmg||0);
   log(`${u.emoji} <b>${u.name}</b> 攻擊 ${t.emoji} ${t.name}${crit?'（爆擊！）':''}`,'dm');
   lungeFx(u); await sleep(175);
-  await dealDamage(t, base*(crit?(u.critDmg||1.8):1), {crit, big:mult>1});
-  if(crit && u.skill==='assassinate'){ u.bloodlust=(u.bloodlust||0)+1; fxOn(u,'🗡️'); }
+  const dealt=await dealDamage(t, base*(crit?cdmg:1), {crit, big:mult>1});
+  if(perks.lifesteal>0 && dealt>0 && u.alive){ const h=Math.round(dealt*perks.lifesteal); if(h>0){ u.hp=Math.min(u.maxHp,u.hp+h); pop(u,'+'+h,'heal'); paintAll(); } }
+  if(crit){
+    if(u.skill==='assassinate'){ u.bloodlust=(u.bloodlust||0)+1; fxOn(u,'🗡️'); }
+    if(perks.critRamp){ alive(allies).forEach(a=>a.crit=Math.min(0.95,(a.crit||0)+0.02)); }
+    if(perks.critChain && !copt.chained && alive(foesArr).length>0){ await sleep(90); await basicAttack(u, foesArr, mult*0.7, {chained:true}); }
+  }
   await sleep(105);
 }
 
@@ -573,7 +607,7 @@ function mkFoeAlly(){
 async function tickStatus(u){
   if(u.alive && u.regen>0 && u.regenT>0){ const h=u.regen; u.hp=Math.min(u.maxHp,u.hp+h); u.regenT--; if(u.regenT<=0)u.regen=0; fxOn(u,'➕'); pop(u,'+'+h,'heal'); paintAll(); await sleep(140); }
   if(u.poison>0 && u.poisonT>0){
-    const dmg=u.poison*7;
+    const dmg=Math.round(u.poison*7*(1+(perks.poisonMul||0)));
     u.hp-=dmg; u.poisonT--; if(u.poisonT<=0)u.poison=0;
     hurtFx(u); fxOn(u,'☠️'); pop(u,'-'+dmg,'dmg');
     log(`　☠️ ${u.emoji} ${u.name} 中毒掉 ${dmg}`,'dm');
@@ -606,8 +640,58 @@ async function enemyTurn(u){
   const t=rand(allies);
   log(`${u.emoji} ${u.name} 攻擊 ${t.emoji} ${t.name}`,'dm');
   lungeFx(u); await sleep(165);
-  await dealDamage(t, u.atk*(0.9+Math.random()*0.25));
+  const dealt=await dealDamage(t, u.atk*(0.9+Math.random()*0.25));
+  if(perks.thorns>0 && dealt>0 && u.alive){ const r=Math.round(dealt*perks.thorns); if(r>0){ u.hp-=r; fxOn(u,'🌵'); pop(u,'-'+r,'dmg'); if(u.hp<=0){ u.hp=0; u.alive=false; log(`　🌵 ${u.emoji} ${u.name} 被荊棘反殺`,'ko'); } paintAll(); } }
   await sleep(330);
+}
+
+/* ---------- 強化池（tags = 與哪些技能合拍，用來加權）---------- */
+const BOONS=[
+  {id:'lifesteal', icon:'🩸', name:'吸血',     desc:'每次普攻回復造成傷害的 25%',     tags:['assassinate','overclock','armorbreak'], apply:()=>perks.lifesteal+=0.25},
+  {id:'critchain', icon:'⚡', name:'爆擊連鎖', desc:'爆擊時追加一次攻擊',             tags:['assassinate','empower','overclock'], once:true, apply:()=>perks.critChain=true},
+  {id:'edge',      icon:'🗡️', name:'嗜血',     desc:'全隊爆擊率 +12%',               tags:['assassinate','empower'], apply:()=>perks.teamCrit+=0.12},
+  {id:'heavy',     icon:'💥', name:'重擊',     desc:'爆擊傷害 +40%',                 tags:['assassinate','overclock'], apply:()=>perks.critDmg+=0.4},
+  {id:'allatk',    icon:'📈', name:'全軍突擊', desc:'全隊攻擊力 +20%',               tags:[], apply:()=>perks.atkMul*=1.2},
+  {id:'iron',      icon:'🛡️', name:'鋼鐵之軀', desc:'全隊血量上限 +25%（並回滿）',    tags:['shield','heal','regen'], apply:()=>alive(allies).forEach(a=>{a.maxHp=Math.round(a.maxHp*1.25); a.hp=a.maxHp;})},
+  {id:'thorns',    icon:'🌵', name:'荊棘',     desc:'受到攻擊時反彈 30% 傷害',       tags:['shield','armorbreak'], apply:()=>perks.thorns+=0.3},
+  {id:'venom',     icon:'☠️', name:'劇毒',     desc:'中毒每層傷害 +60%',             tags:['corrode'], apply:()=>perks.poisonMul+=0.6},
+  {id:'shatter',   icon:'💢', name:'破甲專精', desc:'易傷效果增強（每層多 +10%）',   tags:['corrode','armorbreak','hypnosis'], apply:()=>perks.vulnBonus+=0.1},
+  {id:'first',     icon:'🎯', name:'先發制人', desc:'每波第一擊必定爆擊',           tags:['assassinate','overclock'], once:true, apply:()=>perks.firstStrikeCrit=true},
+  {id:'rest',      icon:'➕', name:'休整',     desc:'每波開始多回 18% 血量',         tags:['regen','heal'], apply:()=>perks.waveHeal+=0.18},
+  {id:'berserk',   icon:'🔥', name:'狂戰',     desc:'血量越低攻擊越高（最多 +40%）', tags:['overclock','armorbreak'], once:true, apply:()=>perks.berserk=true},
+  {id:'ramp',      icon:'🔺', name:'連環殺意', desc:'每次爆擊全隊爆擊率永久 +2%',     tags:['assassinate'], once:true, apply:()=>perks.critRamp=true},
+];
+function pickBoons(){
+  const teamSkills=new Set([...selected].map(id=>VILLAGERS.find(v=>v.id===id)?.skill));
+  const pool=BOONS.filter(b=>!(b.once&&takenBoons.has(b.id)));
+  const bag=[]; pool.forEach(b=>{ const w=b.tags.some(t=>teamSkills.has(t))?3:1; for(let i=0;i<w;i++)bag.push(b); });
+  const out=[];
+  while(out.length<3 && bag.length){
+    const b=bag[Math.floor(Math.random()*bag.length)];
+    if(!out.includes(b)) out.push(b);
+    for(let i=bag.length-1;i>=0;i--) if(bag[i]===b) bag.splice(i,1);
+  }
+  return out.map(b=>({b, syn:b.tags.some(t=>teamSkills.has(t))}));
+}
+function renderBoonBar(){ const el=$('#boonbar'); if(el) el.innerHTML=runBoons.map(b=>`<span class="bn" title="${b.name}：${b.desc}">${b.icon}</span>`).join(''); }
+function offerBoons(){
+  return new Promise(resolve=>{
+    const picks=pickBoons();
+    if(picks.length===0){ resolve(); return; }
+    const box=$('#boonpick');
+    box.innerHTML=`<h3>👑 魔王已倒下！</h3><div class="bsub">選一個強化，整場有效。挑合拍的搭配，越衝越遠。</div>
+      <div class="boonrow">${picks.map((p,i)=>`<div class="booncard${p.syn?' syn':''}" data-i="${i}">
+        <div class="bi">${p.b.icon}</div><div class="bnm">${p.b.name}</div><div class="bds">${p.b.desc}</div>
+        ${p.syn?'<span class="btag">✦ 與你的隊伍合拍</span>':''}</div>`).join('')}</div>`;
+    box.classList.add('show');
+    box.querySelectorAll('.booncard').forEach(c=>c.addEventListener('click',()=>{
+      const p=picks[+c.dataset.i]; p.b.apply(); if(p.b.once) takenBoons.add(p.b.id);
+      runBoons.push(p.b); renderBoonBar();
+      box.classList.remove('show'); box.innerHTML='';
+      log(`<span class="win">✦ 獲得強化：${p.b.icon} ${p.b.name}</span>`);
+      resolve();
+    }));
+  });
 }
 
 let roundN=0;
@@ -617,7 +701,7 @@ async function runBattle(){
     curWave++;
     foes = genWave(curWave); tagUids(foes);
     $('#wavebar').textContent=`第 ${curWave} 波`+(curWave%5===0?'　👾 魔王！':'')+`　·　你的最高紀錄 ${bestWave()} 波`;
-    buildStage(); log(`<span class="win">— 第 ${curWave} 波 —</span>`); await sleep(550);
+    buildStage(); alive(allies).forEach(a=>a._firstHit=perks.firstStrikeCrit); log(`<span class="win">— 第 ${curWave} 波 —</span>`); await sleep(550);
     while(alive(foes).length>0 && alive(allies).length>0){
       roundN++;
       // turn order by spd, all alive units
@@ -635,8 +719,9 @@ async function runBattle(){
     if(alive(allies).length===0){ return endBattle(curWave-1); }
     log(`<span class="win">✦ 第 ${curWave} 波清空！</span>`);
     // 波間：小回血、清護盾/過熱，撐得久一點
-    alive(allies).forEach(a=>{ const h=Math.round(a.maxHp*0.12); a.hp=Math.min(a.maxHp,a.hp+h); a.shield=0; a.overheat=false; if(h>0){auraOn(a,'rgba(74,208,125,.4)'); pop(a,'+'+h,'heal');} });
+    alive(allies).forEach(a=>{ const h=Math.round(a.maxHp*(0.12+(perks.waveHeal||0))); a.hp=Math.min(a.maxHp,a.hp+h); a.shield=0; a.overheat=false; if(h>0){auraOn(a,'rgba(74,208,125,.4)'); pop(a,'+'+h,'heal');} });
     paintAll(); await sleep(650);
+    if(curWave%5===0 && alive(allies).length>0) await offerBoons();   // 打完魔王 → 抽強化
   }
   endBattle(curWave-1);
 }
@@ -658,7 +743,8 @@ function resetAndStart(){
   curWave=0; roundN=0; uidc=0; foes=[];
   allies = [...selected].map(id=>mkAlly(VILLAGERS.find(v=>v.id===id)));
   tagUids(allies);
-  $('#log').innerHTML=''; $('#result').className='result';
+  resetPerks(); takenBoons.clear(); runBoons=[]; renderBoonBar();
+  $('#log').innerHTML=''; $('#result').className='result'; $('#boonpick').className='boonpick';
   buildStage(); runBattle();
 }
 
