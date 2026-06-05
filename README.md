@@ -4,7 +4,7 @@
 
 這是 [芯覺數位](https://coreawakening.ai/) CPN 共學夥伴的共建專案。它的目的不只是好玩：**讓沒寫過程式的人，完成人生第一個 Pull Request，並且持續一起玩、一起改。**
 
-🎮 **線上試玩**：（部署後補上 GitHub Pages 連結）
+🎮 **線上試玩**：https://maxfan-jiang.github.io/core-village/
 🙋 **想加入**：看 [CONTRIBUTING.md](CONTRIBUTING.md)，5 分鐘放進你的村民。
 
 ---
