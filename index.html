@@ -499,7 +499,7 @@ $('#autoBtn').addEventListener('click',()=>{
 
 /* ---------- 建立戰鬥單位 ---------- */
 function mkAlly(v){
-  return {...v, side:'ally', maxHp:v.hp, hp:v.hp, baseAtk:v.atk, atk:v.atk,
+  return {...v, side:'ally', maxHp:v.hp, hp:v.hp, baseHp:v.hp, baseAtk:v.atk, atk:v.atk,
     crit:(typeof v.crit==='number'?v.crit:0.08), critDmg:1.9, bloodlust:0,
     poison:0, poisonT:0, frozen:0, vuln:0, vulnT:0, regen:0, regenT:0,
     cdLeft:0, cd:3, shield:0, dodgeP:0, dodgeT:0, overheat:false, rally:0, taunt:0, alive:true};
@@ -533,7 +533,7 @@ function mkFoe(f){ return {...f, side:'foe', maxHp:f.hp, hp:f.hp, atk:f.atk, bas
 let allies=[], foes=[], curWave=0, busy=false;
 /* roguelite 強化：打完魔王 3 選 1，效果累積整場 */
 let perks={}, runBoons=[]; const takenBoons=new Set();
-function resetPerks(){ perks={lifesteal:0,critChain:false,teamCrit:0,critDmg:0,atkMul:1,killHeal:0,poisonMul:0,vulnBonus:0,firstStrikeCrit:false,waveHeal:0,berserk:false,critRamp:false,weaken:false,dmgReduce:0}; }
+function resetPerks(){ perks={lifesteal:0,critChain:false,teamCrit:0,critDmg:0,atkMul:1,killHeal:0,poisonMul:0,vulnBonus:0,firstStrikeCrit:false,waveHeal:0,berserk:false,critRamp:false,weaken:false,dmgReduce:0,ironStacks:0}; }
 resetPerks();
 // 浴血：敵人倒下時全隊回血（隨擊殺放大，餵血甲消耗流）
 function killHeal(){ if(perks.killHeal<=0) return; const list=alive(allies); list.forEach(a=>{ a.hp=Math.min(a.maxHp,a.hp+Math.round(a.maxHp*perks.killHeal)); }); if(list[0]) pop(list[0],'🧛','heal'); }
@@ -776,7 +776,7 @@ const BOONS=[
   {id:'edge',      icon:'🗡️', name:'嗜血',     desc:'全隊爆擊率 +12%',               tags:['assassinate','empower'], apply:()=>perks.teamCrit+=0.12},
   {id:'heavy',     icon:'💥', name:'重擊',     desc:'爆擊傷害 +40%',                 tags:['assassinate','overclock'], apply:()=>perks.critDmg+=0.4},
   {id:'allatk',    icon:'📈', name:'全軍突擊', desc:'全隊攻擊力 +20%',               tags:[], apply:()=>perks.atkMul*=1.2},
-  {id:'iron',      icon:'🛡️', name:'鋼鐵之軀', desc:'全隊血量上限 +25%（並回滿）',    tags:['shield','heal','regen'], apply:()=>alive(allies).forEach(a=>{a.maxHp=Math.round(a.maxHp*1.25); a.hp=a.maxHp;})},
+  {id:'iron',      icon:'🛡️', name:'鋼鐵之軀', desc:'全隊血量上限提升（邊際遞減、趨近 +50%、並回血）', tags:['shield','heal','regen'], apply:()=>{ const n=(perks.ironStacks||0)+1; perks.ironStacks=n; const prev=0.5*(1-Math.pow(0.55,n-1)), cur=0.5*(1-Math.pow(0.55,n)); alive(allies).forEach(a=>{ const add=Math.round((a.baseHp||a.maxHp)*(cur-prev)); a.maxHp+=add; a.hp+=add; }); }},
   {id:'bloodheal', icon:'🧛', name:'浴血',     desc:'每當敵人倒下，全隊回復 7% 血量', tags:['shield','heal','regen','summon','assassinate'], apply:()=>perks.killHeal+=0.07},
   {id:'venom',     icon:'☠️', name:'劇毒',     desc:'中毒每層傷害 +60%',             tags:['corrode'], apply:()=>perks.poisonMul+=0.6},
   {id:'shatter',   icon:'💢', name:'破甲專精', desc:'易傷效果增強（每層多 +10%）',   tags:['corrode','armorbreak','hypnosis'], apply:()=>perks.vulnBonus+=0.1},
@@ -785,7 +785,7 @@ const BOONS=[
   {id:'berserk',   icon:'🔥', name:'狂戰',     desc:'血量越低攻擊越高（最多 +40%）', tags:['overclock','armorbreak'], once:true, apply:()=>perks.berserk=true},
   {id:'ramp',      icon:'🔺', name:'連環殺意', desc:'每次爆擊全隊爆擊率永久 +2%',     tags:['assassinate'], once:true, apply:()=>perks.critRamp=true},
   {id:'weaken',    icon:'😵', name:'積弱',     desc:'易傷且帶任一減益的敵人，攻擊力大幅下降', tags:['corrode','armorbreak','hypnosis','freeze'], once:true, apply:()=>perks.weaken=true},
-  {id:'bulwark',   icon:'🧱', name:'銅牆',     desc:'全隊受到的傷害 -12%（可疊、上限 60%）',  tags:['taunt','armor','shield','regen','heal'], apply:()=>perks.dmgReduce=Math.min(0.6,(perks.dmgReduce||0)+0.12)},
+  {id:'bulwark',   icon:'🧱', name:'銅牆',     desc:'全隊受傷 -12%（上限 -48%）；封頂後改全隊 攻+5 / 血+5% / 速+1', tags:['taunt','armor','shield','regen','heal'], apply:()=>{ if((perks.dmgReduce||0)<0.48){ perks.dmgReduce=Math.min(0.48,(perks.dmgReduce||0)+0.12); } else { alive(allies).forEach(a=>{ a.atk+=5; a.baseAtk+=5; const hb=Math.round(a.maxHp*0.05); a.maxHp+=hb; a.hp+=hb; a.spd+=1; }); } }},
 ];
 function pickBoons(){
   const teamSkills=new Set([...selected].map(id=>VILLAGERS.find(v=>v.id===id)?.skill));
