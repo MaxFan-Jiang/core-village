@@ -477,8 +477,10 @@ function mkFoe(f){ return {...f, side:'foe', maxHp:f.hp, hp:f.hp, atk:f.atk, bas
 let allies=[], foes=[], curWave=0, busy=false;
 /* roguelite 強化：打完魔王 3 選 1，效果累積整場 */
 let perks={}, runBoons=[]; const takenBoons=new Set();
-function resetPerks(){ perks={lifesteal:0,critChain:false,teamCrit:0,critDmg:0,atkMul:1,thorns:0,poisonMul:0,vulnBonus:0,firstStrikeCrit:false,waveHeal:0,berserk:false,critRamp:false}; }
+function resetPerks(){ perks={lifesteal:0,critChain:false,teamCrit:0,critDmg:0,atkMul:1,killHeal:0,poisonMul:0,vulnBonus:0,firstStrikeCrit:false,waveHeal:0,berserk:false,critRamp:false}; }
 resetPerks();
+// 浴血：敵人倒下時全隊回血（隨擊殺放大，餵血甲消耗流）
+function killHeal(){ if(perks.killHeal<=0) return; const list=alive(allies); list.forEach(a=>{ a.hp=Math.min(a.maxHp,a.hp+Math.round(a.maxHp*perks.killHeal)); }); if(list[0]) pop(list[0],'🧛','heal'); }
 
 /* ---------- 渲染戰場：建一次、就地更新（動畫才不會被洗掉）---------- */
 let uidc=0;
@@ -589,7 +591,7 @@ async function dealDamage(target, amount, opt={}){
     shake(opt.crit||opt.big); sfx(opt.crit?'crit':'hit');
     await sleep(opt.crit?95:55);   // 打擊頓挫 hitstop
   }
-  if(target.hp<=0){ target.hp=0; target.alive=false; sfx('ko'); log(`　💀 ${target.emoji} ${target.name} 倒下`,'ko'); }
+  if(target.hp<=0){ target.hp=0; target.alive=false; sfx('ko'); log(`　💀 ${target.emoji} ${target.name} 倒下`,'ko'); if(target.side==='foe') killHeal(); }
   paintAll();
   return dealt;
 }
@@ -650,7 +652,7 @@ async function tickStatus(u){
     u.hp-=dmg; u.poisonT--; if(u.poisonT<=0)u.poison=0;
     hurtFx(u); fxOn(u,'☠️'); pop(u,'-'+dmg,'dmg'); sfx('poison');
     log(`　☠️ ${u.emoji} ${u.name} 中毒掉 ${dmg}`,'dm');
-    if(u.hp<=0){ u.hp=0; u.alive=false; log(`　💀 ${u.emoji} ${u.name} 毒發身亡`,'ko'); }
+    if(u.hp<=0){ u.hp=0; u.alive=false; sfx('ko'); log(`　💀 ${u.emoji} ${u.name} 毒發身亡`,'ko'); if(u.side==='foe') killHeal(); }
     paintAll(); await sleep(220);
   }
   if(u.vuln>0 && u.vulnT>0){ u.vulnT--; if(u.vulnT<=0)u.vuln=0; }
@@ -679,8 +681,7 @@ async function enemyTurn(u){
   const t=rand(allies);
   log(`${u.emoji} ${u.name} 攻擊 ${t.emoji} ${t.name}`,'dm');
   lungeFx(u); await sleep(165);
-  const dealt=await dealDamage(t, u.atk*(0.9+Math.random()*0.25));
-  if(perks.thorns>0 && dealt>0 && u.alive){ const r=Math.round(dealt*perks.thorns); if(r>0){ u.hp-=r; fxOn(u,'🌵'); pop(u,'-'+r,'dmg'); if(u.hp<=0){ u.hp=0; u.alive=false; log(`　🌵 ${u.emoji} ${u.name} 被荊棘反殺`,'ko'); } paintAll(); } }
+  await dealDamage(t, u.atk*(0.9+Math.random()*0.25));
   await sleep(330);
 }
 
@@ -692,7 +693,7 @@ const BOONS=[
   {id:'heavy',     icon:'💥', name:'重擊',     desc:'爆擊傷害 +40%',                 tags:['assassinate','overclock'], apply:()=>perks.critDmg+=0.4},
   {id:'allatk',    icon:'📈', name:'全軍突擊', desc:'全隊攻擊力 +20%',               tags:[], apply:()=>perks.atkMul*=1.2},
   {id:'iron',      icon:'🛡️', name:'鋼鐵之軀', desc:'全隊血量上限 +25%（並回滿）',    tags:['shield','heal','regen'], apply:()=>alive(allies).forEach(a=>{a.maxHp=Math.round(a.maxHp*1.25); a.hp=a.maxHp;})},
-  {id:'thorns',    icon:'🌵', name:'荊棘',     desc:'受到攻擊時反彈 30% 傷害',       tags:['shield','armorbreak'], apply:()=>perks.thorns+=0.3},
+  {id:'bloodheal', icon:'🧛', name:'浴血',     desc:'每當敵人倒下，全隊回復 7% 血量', tags:['shield','heal','regen','summon','assassinate'], apply:()=>perks.killHeal+=0.07},
   {id:'venom',     icon:'☠️', name:'劇毒',     desc:'中毒每層傷害 +60%',             tags:['corrode'], apply:()=>perks.poisonMul+=0.6},
   {id:'shatter',   icon:'💢', name:'破甲專精', desc:'易傷效果增強（每層多 +10%）',   tags:['corrode','armorbreak','hypnosis'], apply:()=>perks.vulnBonus+=0.1},
   {id:'first',     icon:'🎯', name:'先發制人', desc:'每波第一擊必定爆擊',           tags:['assassinate','overclock'], once:true, apply:()=>perks.firstStrikeCrit=true},
