@@ -1,7 +1,7 @@
 {
   "id": "jason",
   "name": "Jason",
-  "job": "軟體 · IT 自動化",
+  "job": "設備業 · IT 工程師",
   "emoji": "🤖",
   "hp": 95,
   "atk": 18,
@@ -9,6 +9,6 @@
   "skill": "assassinate",
   "crit": 0.42,
   "cry": "鎖定目標，自動化連擊三連。",
-  "story": "cohort 裡唯一的真工程師，連擊一旦起手就停不下來。",
+  "story": "做 ERP 跟機器學習的 IT 工程師，連擊一旦起手就停不下來。",
   "join": "讓他用 Claude Code 幫你開一個 PR。"
 }
