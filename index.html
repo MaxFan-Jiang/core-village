@@ -341,13 +341,13 @@ const SKILLS = {
   freeze:     {name:"罰站",     icon:"❄️", desc:"凍結一個敵人罰站 3 回合，並使其易傷", kind:"util"},
   assassinate:{name:"自動化連擊",icon:"🗡️", desc:"連擊最多 3 個敵人；爆擊疊『殺意』，殺意越多爆擊率越高", kind:"atk"},
   dodge:      {name:"分鏡預判", icon:"🎯", desc:"全隊各自閃避下一次攻擊", kind:"util"},
-  heal:       {name:"散熱模組", icon:"💧", desc:"治療血量最低的隊友", kind:"util"},
+  heal:       {name:"散熱模組", icon:"💧", desc:"大幅治療血量最低的隊友，並小補全隊", kind:"util"},
   summon:     {name:"檔期促銷", icon:"🎁", desc:"召喚一個援軍小幫手", kind:"util"},
   corrode:    {name:"蝕刻",     icon:"☠️", desc:"攻擊，並讓全體敵人中毒＋易傷，可疊層", kind:"atk"},
   empower:    {name:"市場賦能", icon:"📈", desc:"全隊攻擊力提升（數回合）、爆擊率永久疊加", kind:"util"},
   hypnosis:   {name:"全場催眠", icon:"🌀", desc:"凍結所有敵人 1 回合，並使其『易傷』", kind:"util"},
   overclock:  {name:"超頻",     icon:"⚡", desc:"對主目標 2.6 倍爆發，餘波炸傷全場；下回合過熱", kind:"atk"},
-  regen:      {name:"節能續航", icon:"➕", desc:"全隊獲得『再生』，3 回合內每回合回血", kind:"util"},
+  regen:      {name:"節能續航", icon:"➕", desc:"全隊獲得『再生』，4 回合內每回合回血", kind:"util"},
   armorbreak: {name:"精密拆解", icon:"🔩", desc:"重擊一個敵人；殘血直接拆解（即死），越後期斬殺線越高、魔王門檻減半，否則疊 2 層易傷", kind:"atk"},
 };
 /* 村民資料由 build 產生（window.__VILLAGERS__，聚合自 villagers/*.json）。原本寫死的陣列已抽走。*/
@@ -682,35 +682,36 @@ async function useSkill(u, ownSide, foeSide){
     case 'shield': alive(ownSide).forEach(a=>{a.shield+=26; auraOn(a,'rgba(94,200,224,.55)'); fxOn(a,'🛡️');}); break;
     case 'taunt': { u.taunt=3; u.shield+=Math.round(u.maxHp*0.5); auraOn(u,'rgba(110,135,184,.65)'); fxOn(u,'🦺'); pop(u,'嘲諷！','miss'); log(`　🦺 ${u.emoji} ${u.name} 挺身嘲諷，火力都往她身上、且傷害砍半`,'sk'); break; }
     case 'freeze': { const fs=alive(foeSide); const tgt=fs.sort((a,b)=>b.atk-a.atk)[0]; if(tgt){tgt.frozen=3; tgt.vuln=(tgt.vuln||0)+1; tgt.vulnT=Math.max(tgt.vulnT||0,4); auraOn(tgt,'rgba(120,180,255,.6)'); fxOn(tgt,'❄️'); pop(tgt,'❄️凍結','miss'); log(`　❄️ ${tgt.emoji} ${tgt.name} 被罰站 3 回合＋易傷`,'sk');} break; }
-    case 'heal':   { const cand=alive(ownSide).filter(a=>a.id!=='helper'); const t=cand.sort((a,b)=>a.hp/a.maxHp-b.hp/b.maxHp)[0]; if(t){const h=Math.round(t.maxHp*0.32); t.hp=Math.min(t.maxHp,t.hp+h); auraOn(t,'rgba(74,208,125,.5)'); fxOn(t,'➕'); pop(t,'+'+h,'heal'); log(`　💧 治療 ${t.emoji} ${t.name} +${h}`,'he');} break; }
+    case 'heal':   { const cand=alive(ownSide).filter(a=>a.id!=='helper'); const t=cand.sort((a,b)=>a.hp/a.maxHp-b.hp/b.maxHp)[0]; if(t){const h=Math.round(t.maxHp*0.5); t.hp=Math.min(t.maxHp,t.hp+h); auraOn(t,'rgba(74,208,125,.5)'); fxOn(t,'➕'); pop(t,'+'+h,'heal'); log(`　💧 治療 ${t.emoji} ${t.name} +${h}`,'he'); cand.forEach(a=>{ if(a!==t){ const hh=Math.round(a.maxHp*0.12); a.hp=Math.min(a.maxHp,a.hp+hh); if(hh>0){fxOn(a,'➕'); pop(a,'+'+hh,'heal');} } });} break; }   // 主補 50% + 全隊小補 12%（補師流續命引擎）
     case 'empower': alive(ownSide).forEach(a=>{a.rally=2; a.crit=Math.min(0.9,(a.crit||0)+0.22); auraOn(a,'rgba(201,169,110,.5)'); fxOn(a,'📈');}); log(`　📈 全隊 攻擊↑（數回合）、爆擊率永久↑`,'sk'); break;
     case 'dodge':  alive(ownSide).forEach(a=>{a.dodge=true; auraOn(a,'rgba(201,169,110,.55)'); fxOn(a,'🎯');}); log(`　🎯 全隊預判，閃避各自下一次攻擊`,'sk'); break;
     case 'summon': {
       allies = allies.filter(a=>!(a.id==='helper' && !a.alive));            // 清掉死掉的小雞
-      if(allies.filter(a=>a.id==='helper').length < 3){                     // 場上最多 3 隻
+      if(allies.filter(a=>a.id==='helper').length < 4){                     // 場上最多 4 隻（肉盾牆）
         const helper=mkFoeAlly(); allies.push(helper); tagUids([helper]);
         log(`　🎁 召喚援軍 ${helper.emoji} ${helper.name}`,'he');
       } else { log(`　🎁 小幫手已經滿場了`,'he'); }
       buildStage(); fxOn(u,'🎁'); break; }
     case 'assassinate': for(let i=0;i<3;i++){ const fs=alive(foeSide); if(!fs.length)break; fs.sort((a,b)=>a.hp-b.hp); await basicAttack(u,[fs[i%fs.length]],0.85); await sleep(110);} break;   // 連擊掃 3 個不同敵人
-    case 'corrode': { await basicAttack(u,foeSide,1); alive(foeSide).forEach(t=>{ t.poison=(t.poison||0)+2; t.poisonT=Math.max(t.poisonT||0,4); t.vuln=(t.vuln||0)+1; t.vulnT=Math.max(t.vulnT||0,4); auraOn(t,'rgba(150,220,120,.5)'); fxOn(t,'☠️'); }); log(`　☠️ 蝕刻液濺到全場，全體中毒＋易傷（持續疊層）`,'sk'); break; }
+    case 'corrode': { await basicAttack(u,foeSide,1); alive(foeSide).forEach(t=>{ t.poison=(t.poison||0)+3; t.poisonT=Math.max(t.poisonT||0,4); t.vuln=(t.vuln||0)+1; t.vulnT=Math.max(t.vulnT||0,4); auraOn(t,'rgba(150,220,120,.5)'); fxOn(t,'☠️'); }); log(`　☠️ 蝕刻液濺到全場，全體中毒＋易傷（持續疊層）`,'sk'); break; }
     case 'hypnosis': alive(foeSide).forEach(f=>{ f.frozen=Math.max(f.frozen,1); f.vuln=(f.vuln||0)+1; f.vulnT=3; auraOn(f,'rgba(155,109,214,.6)'); fxOn(f,'🌀'); }); log(`　🌀 全場催眠！敵人罰站＋易傷`,'sk'); break;
     case 'overclock': { const main=lowestHp(foeSide); await basicAttack(u,foeSide,2.6); shake(true); for(const f of alive(foeSide)){ if(f===main)continue; fxOn(f,'⚡'); await dealDamage(f, Math.round(u.atk*1.4), {}); } log(`　⚡ 超頻過載，餘波炸傷全場`,'sk'); u.overheat=true; break; }   // 主目標爆發＋餘波 AoE（弱角補強：2.3→2.6、餘波 1.1→1.4）
-    case 'regen': alive(ownSide).forEach(a=>{ a.regen=Math.round(a.maxHp*0.08); a.regenT=3; auraOn(a,'rgba(94,200,160,.5)'); fxOn(a,'➕'); }); log(`　➕ 全隊再生（3 回合）`,'sk'); break;
+    case 'regen': alive(ownSide).forEach(a=>{ a.regen=Math.round(a.maxHp*0.13); a.regenT=4; auraOn(a,'rgba(94,200,160,.5)'); fxOn(a,'➕'); }); log(`　➕ 全隊再生（4 回合）`,'sk'); break;   // 8%→13%/回、3→4 回合（再生流續命）
     case 'armorbreak': { const t=lowestHp(foeSide); await basicAttack(u,foeSide,1.4); if(t&&t.alive){ const exThr=Math.min(0.40,0.18+0.006*curWave); const thr=(t.emoji==='👾')?exThr*0.5:exThr; if(t.hp < t.maxHp*thr){ t.hp=0; t.alive=false; impactFx(t,'💥'); pop(t,'拆解！','crit'); sfx('ko'); log(`　🔩 ${t.emoji} ${t.name} 被精密拆解（即死）`,'sk'); if(t.side==='foe') killHeal(); } else { t.vuln=(t.vuln||0)+2; t.vulnT=Math.max(t.vulnT||0,4); auraOn(t,'rgba(138,143,158,.6)'); fxOn(t,'🔩'); log(`　🔩 ${t.emoji} ${t.name} 易傷×${t.vuln}`,'sk'); } } break; }   // 斬殺線隨波↑(18%→40%)、魔王門檻減半→越後期越能斬boss；否則疊易傷
   }
   paintAll();
 }
 function mkFoeAlly(){
-  return {id:'helper',name:'促銷小幫手',job:'',emoji:'🐣',side:'ally',maxHp:45,hp:45,baseAtk:14,atk:14,spd:11,
-    skill:null,cdLeft:99,cd:99,shield:0,dodge:false,overheat:false,rally:0,alive:true,cry:'',_firstHit:!!perks.firstStrikeCrit};
+  const n=Math.max(1,curWave||1), hhp=Math.round(45*(1+0.18*(n-1))), hat=Math.round(14*(1+0.10*(n-1)));   // 小幫手隨波長壯，後期才撐得住當肉盾
+  return {id:'helper',name:'促銷小幫手',job:'',emoji:'🐣',side:'ally',maxHp:hhp,hp:hhp,baseAtk:hat,atk:hat,spd:11,
+    skill:null,cdLeft:99,cd:99,shield:0,dodge:0,overheat:false,rally:0,alive:true,cry:'',_firstHit:!!perks.firstStrikeCrit};
 }
 
 // 回合開始結算狀態：中毒掉血、易傷衰減、凍結跳過。回傳 true = 這回合不行動
 async function tickStatus(u){
   if(u.alive && u.regen>0 && u.regenT>0){ const h=u.regen; u.hp=Math.min(u.maxHp,u.hp+h); u.regenT--; if(u.regenT<=0)u.regen=0; fxOn(u,'➕'); pop(u,'+'+h,'heal'); paintAll(); await sleep(140); }
   if(u.poison>0 && u.poisonT>0){
-    const dmg=Math.round(u.poison*7*(1+(perks.poisonMul||0)));
+    const dmg=Math.round(u.poison*9*(1+(perks.poisonMul||0)));   // 每層毒傷 7→9（毒流更有感）
     u.hp-=dmg; u.poisonT--; if(u.poisonT<=0){ u.poison=Math.max(0,u.poison-1); if(u.poison>0)u.poisonT=2; }   // 中毒層數逐層衰減（不再一次清空），讓毒流疊得起來
     hurtFx(u); fxOn(u,'☠️'); pop(u,'-'+dmg,'dmg'); sfx('poison');
     log(`　☠️ ${u.emoji} ${u.name} 中毒掉 ${dmg}`,'dm');
@@ -823,7 +824,7 @@ async function runBattle(){
     if(alive(allies).length===0){ return endBattle(curWave-1); }
     sfx('wave'); log(`<span class="win">✦ 第 ${curWave} 波清空！</span>`);
     // 波間：小回血、清護盾（過熱債跨波保留，下波誠實支付一回合休息），撐得久一點
-    alive(allies).forEach(a=>{ const h=Math.round(a.maxHp*(0.12+(perks.waveHeal||0))); a.hp=Math.min(a.maxHp,a.hp+h); a.shield=0; if(h>0){auraOn(a,'rgba(74,208,125,.4)'); pop(a,'+'+h,'heal');} });
+    alive(allies).forEach(a=>{ const h=Math.round(a.maxHp*(0.18+(perks.waveHeal||0))); a.hp=Math.min(a.maxHp,a.hp+h); a.shield=0; if(h>0){auraOn(a,'rgba(74,208,125,.4)'); pop(a,'+'+h,'heal');} });   // 波間回血 12%→18%（全隊續命底線）
     paintAll(); await sleep(650);
     allies = allies.filter(a=>a.alive || a.id!=='helper');   // 只清死掉的小幫手；陣亡村民留屍體在場（未來可寫復活技能）
     if(curWave%5===0 && allies.length>0) await offerBoons();   // 打完魔王 → 抽強化
