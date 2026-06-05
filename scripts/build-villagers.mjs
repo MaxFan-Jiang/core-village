@@ -20,7 +20,7 @@ const CHECK_ONLY = process.argv.includes("--check");
 // 技能選單：必須是這 12 個之一。"custom"（自寫技能碼）為了安全 v1 先不開放——
 // 在每位玩家瀏覽器執行 PR 帶進來的任意程式碼 = 重大資安風險，要走 code review 直接併進引擎。
 const SKILLS = new Set([
-  "shield","freeze","assassinate","dodge","heal","summon",
+  "shield","taunt","freeze","assassinate","dodge","heal","summon",
   "corrode","empower","hypnosis","overclock","regen","armorbreak",
 ]);
 
