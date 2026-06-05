@@ -349,6 +349,9 @@ const SKILLS = {
   overclock:  {name:"超頻",     icon:"⚡", desc:"對主目標 2.6 倍爆發，餘波炸傷全場；下回合過熱", kind:"atk"},
   regen:      {name:"節能續航", icon:"➕", desc:"全隊獲得『再生』，4 回合內每回合回血", kind:"util"},
   armorbreak: {name:"精密拆解", icon:"🔩", desc:"重擊一個敵人；殘血直接拆解（即死），越後期斬殺線越高、魔王門檻減半，否則疊 2 層易傷", kind:"atk"},
+  splash:     {name:"擴散打擊", icon:"🌊", desc:"重擊主目標，傷害的一半濺射全體（隨你養爆擊一起放大）", kind:"atk"},
+  detonate:   {name:"連鎖引爆", icon:"🧨", desc:"重擊主目標；若擊殺，以其最大血量 30% 引爆波及全體", kind:"atk"},
+  armor:      {name:"披甲", icon:"🪖", desc:"全隊獲得相當於血量 60% 的護甲盾（按比例、後期不怕被穿）", kind:"util"},
 };
 /* 村民資料由 build 產生（window.__VILLAGERS__，聚合自 villagers/*.json）。原本寫死的陣列已抽走。*/
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -547,7 +550,7 @@ const SPRITES={
 const BASEPAL={'.':null,'O':'#181226','H':'#5a3a2a','S':'#f3cda0','W':'#ffffff','F':'#39394d','k':'#101820',
   'B':'#C9A96E','b':'#a6843a','g':'#62c06e','d':'#3c8a49','y':'#f5d44a','r':'#f0922e'};
 function darken(hex,f){ const n=parseInt(hex.slice(1),16); const r=Math.round(((n>>16)&255)*f),g=Math.round(((n>>8)&255)*f),b=Math.round((n&255)*f); return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1); }
-const SKILLCOL={shield:'#5e8fc8',taunt:'#6b87b8',freeze:'#79b6e0',assassinate:'#6f8fb5',dodge:'#e89ac0',heal:'#6abf8a',summon:'#e0a060',corrode:'#8bbf5a',empower:'#C9A96E',hypnosis:'#9b6dd6',overclock:'#e0704f',regen:'#5ec8a0',armorbreak:'#8a8f9e'};
+const SKILLCOL={shield:'#5e8fc8',taunt:'#6b87b8',freeze:'#79b6e0',assassinate:'#6f8fb5',dodge:'#e89ac0',heal:'#6abf8a',summon:'#e0a060',corrode:'#8bbf5a',empower:'#C9A96E',hypnosis:'#9b6dd6',overclock:'#e0704f',regen:'#5ec8a0',armorbreak:'#8a8f9e',splash:'#5ec8e0',detonate:'#e0704f',armor:'#6b87b8'};
 function unitSprite(u){
   if(u.side==='foe'){
     const c=u.emoji==='🦠'?'#8ad08a':u.emoji==='💧'?'#5ec8e0':u.emoji==='👾'?'#c98ad0':u.emoji==='❌'?'#ff6d7a':'#9ed06a';
@@ -673,6 +676,7 @@ async function basicAttack(u, foesArr, mult=1, copt={}){
     if(perks.critChain && !copt.chained && alive(foesArr).length>0){ await sleep(90); await basicAttack(u, foesArr, mult*0.7, {chained:true}); }
   }
   await sleep(105);
+  return dealt;   // 回傳主擊實際傷害（給 splash 濺射計算用）
 }
 
 async function useSkill(u, ownSide, foeSide){
@@ -701,6 +705,9 @@ async function useSkill(u, ownSide, foeSide){
     case 'overclock': { const main=lowestHp(foeSide); await basicAttack(u,foeSide,2.6); shake(true); for(const f of alive(foeSide)){ if(f===main)continue; fxOn(f,'⚡'); await dealDamage(f, Math.round(u.atk*1.4), {}); } log(`　⚡ 超頻過載，餘波炸傷全場`,'sk'); u.overheat=true; break; }   // 主目標爆發＋餘波 AoE（弱角補強：2.3→2.6、餘波 1.1→1.4）
     case 'regen': alive(ownSide).forEach(a=>{ a.regen=Math.round(a.maxHp*0.13); a.regenT=4; auraOn(a,'rgba(94,200,160,.5)'); fxOn(a,'➕'); }); log(`　➕ 全隊再生（4 回合）`,'sk'); break;   // 8%→13%/回、3→4 回合（再生流續命）
     case 'armorbreak': { const t=lowestHp(foeSide); await basicAttack(u,foeSide,1.4); if(t&&t.alive){ const exThr=Math.min(0.40,0.18+0.006*curWave); const thr=(t.emoji==='👾')?exThr*0.5:exThr; if(t.hp < t.maxHp*thr){ t.hp=0; t.alive=false; impactFx(t,'💥'); pop(t,'拆解！','crit'); sfx('ko'); log(`　🔩 ${t.emoji} ${t.name} 被精密拆解（即死）`,'sk'); if(t.side==='foe') killHeal(); } else { t.vuln=(t.vuln||0)+2; t.vulnT=Math.max(t.vulnT||0,4); auraOn(t,'rgba(138,143,158,.6)'); fxOn(t,'🔩'); log(`　🔩 ${t.emoji} ${t.name} 易傷×${t.vuln}`,'sk'); } } break; }   // 斬殺線隨波↑(18%→40%)、魔王門檻減半→越後期越能斬boss；否則疊易傷
+    case 'splash': { const main=lowestHp(foeSide); const dealt=await basicAttack(u,foeSide,1.8); if(dealt>0){ for(const f of alive(foeSide)){ if(f===main)continue; fxOn(f,'🌊'); await dealDamage(f, Math.round(dealt*0.5), {}); } } log(`　🌊 濺射！主擊一半波及全場`,'sk'); break; }   // 擴散：主擊傷害50%濺全體、隨爆擊放大
+    case 'detonate': { const main=lowestHp(foeSide); await basicAttack(u,foeSide,1.5); if(main && !main.alive){ const boom=Math.round(main.maxHp*0.3); shake(true); for(const f of alive(foeSide)){ fxOn(f,'🧨'); await dealDamage(f, boom, {big:true}); } log(`　🧨 ${main.emoji} 被引爆，殘骸衝擊波炸全場`,'sk'); } break; }   // 引爆：擊殺則以該敵 maxHp 30% AoE
+    case 'armor': alive(ownSide).forEach(a=>{ const s=Math.round(a.maxHp*0.6); a.shield+=s; auraOn(a,'rgba(110,135,184,.55)'); fxOn(a,'🪖'); }); log(`　🪖 全隊披上相當於 60% 血量的護甲盾`,'sk'); break;   // %護甲：盾=maxHp 60%（隨血縮放、不怕後期被穿）
   }
   paintAll();
 }
