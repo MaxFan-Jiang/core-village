@@ -1,6 +1,9 @@
 # 自動產生（CI 部署時重建，不進版控，避免多人同時 PR 撞檔）
 villagers.generated.js
 
+# 背景音樂：版權音檔不進公開 repo（公開站要音樂另找有授權/原創的）
+music/
+
 node_modules/
 .DS_Store
 *.log

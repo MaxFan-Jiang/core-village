@@ -194,6 +194,9 @@
   .vteam .slot.filled{border-style:solid;border-color:var(--gold);box-shadow:0 0 0 2px rgba(201,169,110,.18)}
   .vhint{text-align:center;color:#8e96b5;font-size:13px;margin-top:10px;line-height:1.7}
   .vhint b{color:var(--gold)}
+  .soundhint{margin:8px auto 2px;max-width:560px;text-align:center;font-size:13.5px;color:var(--gold-hi);background:rgba(201,169,110,.1);border:1px solid rgba(201,169,110,.3);border-radius:12px;padding:9px 16px;cursor:pointer;transition:.15s}
+  .soundhint:hover{background:rgba(201,169,110,.2)}
+  .soundhint b{color:var(--gold);text-decoration:underline}
   .npccard{position:absolute;inset:0;background:rgba(6,8,15,.85);display:none;align-items:center;justify-content:center;z-index:10;padding:14px}
   .npccard.show{display:flex;animation:fadein .2s}
   .npcinner{background:linear-gradient(160deg,var(--navy2),var(--navy3));border:2px solid var(--gold);border-radius:16px;
@@ -214,7 +217,7 @@
   /* 強化抽選（打完魔王 3 選 1）*/
   .boonbar{display:flex;gap:5px;justify-content:center;flex-wrap:wrap;margin:0 0 10px}
   .boonbar .bn{font-size:15px;background:rgba(201,169,110,.12);border:1px solid rgba(201,169,110,.35);border-radius:50px;padding:2px 9px;color:var(--gold);cursor:default}
-  .boonpick{position:absolute;inset:0;background:rgba(6,8,15,.92);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:30;border-radius:18px;padding:18px}
+  .boonpick{position:fixed;inset:0;background:rgba(6,8,15,.93);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:60;padding:18px}
   .boonpick.show{display:flex;animation:fadein .25s}
   .boonpick h3{font-family:var(--serif);font-size:22px;color:var(--gold);margin-bottom:4px;text-align:center}
   .boonpick .bsub{color:#9aa1bd;font-size:13px;margin-bottom:16px;text-align:center}
@@ -233,6 +236,7 @@
 </head>
 <body>
 <canvas id="cf"></canvas>
+<audio id="bgm" loop preload="none" src="music/bgm.m4a"></audio>
 <div class="wrap">
   <header>
     <div class="chip">芯覺村 · CORE VILLAGE</div>
@@ -245,6 +249,7 @@
   <div id="village" class="panel">
     <div class="ttl"><span class="n">1</span>芯覺村<span class="meta" id="vmeta">隊伍 0 / 4</span></div>
     <div class="sub" style="margin-bottom:4px">用方向鍵（手機用左下按鈕）走動，走到村民身邊按 <b>Enter</b> 或點他，認識他、找他組隊。</div>
+    <div id="soundHint" class="soundhint">🔊 戴上耳機、<b>點我開聲音</b>，打起來爽很多。（在上班、旁邊有人？先保持靜音。）</div>
     <div class="vstage">
       <canvas id="vcanvas" width="512" height="352"></canvas>
       <div class="dpad">
@@ -284,7 +289,7 @@
 
   <!-- BATTLE -->
   <div id="battle" class="panel">
-    <div class="ttl"><span class="n">2</span>戰鬥<span class="meta"><span id="muteTag" style="cursor:pointer;margin-right:14px">🔊</span><span id="speedTag" style="cursor:pointer">⏩ 速度 x1</span></span></div>
+    <div class="ttl"><span class="n">2</span>戰鬥<span class="meta"><span id="muteTag" style="cursor:pointer;margin-right:14px">🔇</span><span id="speedTag" style="cursor:pointer">⏩ 速度 x1</span></span></div>
     <div class="wavebar" id="wavebar">第 1 波</div>
     <div class="boonbar" id="boonbar"></div>
     <div class="arena" id="arena">
@@ -350,7 +355,7 @@ const $ = s => document.querySelector(s);
 const sleep = ms => new Promise(r=>setTimeout(r, ms/SPEED));
 
 /* ---------- 音效（瀏覽器即時合成，無音檔）---------- */
-let actx=null, masterG=null, sfxOn=true;
+let actx=null, masterG=null, sfxOn=false;   // 預設關（同事在旁邊）；玩家自己開
 function audioInit(){ if(actx) return; try{ actx=new (window.AudioContext||window.webkitAudioContext)(); masterG=actx.createGain(); masterG.gain.value=0.32; masterG.connect(actx.destination);}catch(e){ actx=null; } }
 function audioGo(){ audioInit(); if(actx&&actx.state==='suspended') actx.resume(); }
 function tone(freq,dur,type='sine',vol=0.25,slideTo=null,when=0){
@@ -386,6 +391,16 @@ const SFX={
   lose(){ [392,330,247].forEach((f,i)=>tone(f,0.34,'sawtooth',0.16,null,i*0.15)); },
 };
 function sfx(n){ try{ (SFX[n]||(()=>{}))(); }catch(e){} }
+/* 主開關：音效 + 背景音樂一起（預設關，玩家自己開）*/
+function setSound(on){
+  sfxOn=on;
+  const m=document.getElementById('muteTag'); if(m) m.textContent=on?'🔊':'🔇';
+  const s=document.getElementById('soundBtn'); if(s) s.textContent=on?'🔊 聲音開著':'🔊 開聲音';
+  const r=document.getElementById('soundHint'); if(r) r.style.display=on?'none':'';
+  const b=document.getElementById('bgm');
+  if(on){ audioGo(); if(b){ b.volume=0.3; b.play().catch(()=>{}); } }
+  else if(b){ b.pause(); }
+}
 
 /* ---------- 招募大廳 ---------- */
 function renderRoster(){
@@ -629,7 +644,13 @@ async function useSkill(u, ownSide, foeSide){
     case 'heal':   { const t=lowestHp(ownSide); if(t){const h=Math.round(t.maxHp*0.32); t.hp=Math.min(t.maxHp,t.hp+h); auraOn(t,'rgba(74,208,125,.5)'); fxOn(t,'➕'); pop(t,'+'+h,'heal'); log(`　💧 治療 ${t.emoji} ${t.name} +${h}`,'he');} break; }
     case 'empower': alive(ownSide).forEach(a=>{a.rally=2; a.crit=Math.min(0.9,(a.crit||0)+0.22); auraOn(a,'rgba(201,169,110,.5)'); fxOn(a,'📈');}); log(`　📈 全隊 攻擊↑ 爆擊↑`,'sk'); break;
     case 'dodge':  u.dodge=true; auraOn(u,'rgba(201,169,110,.55)'); fxOn(u,'🎯'); break;
-    case 'summon': { const helper=mkFoeAlly(); allies.push(helper); tagUids([helper]); buildStage(); fxOn(u,'🎁'); log(`　🎁 召喚援軍 ${helper.emoji} ${helper.name}`,'he'); break; }
+    case 'summon': {
+      allies = allies.filter(a=>!(a.id==='helper' && !a.alive));            // 清掉死掉的小雞
+      if(allies.filter(a=>a.id==='helper').length < 3){                     // 場上最多 3 隻
+        const helper=mkFoeAlly(); allies.push(helper); tagUids([helper]);
+        log(`　🎁 召喚援軍 ${helper.emoji} ${helper.name}`,'he');
+      } else { log(`　🎁 小幫手已經滿場了`,'he'); }
+      buildStage(); fxOn(u,'🎁'); break; }
     case 'assassinate': for(let i=0;i<3;i++){ if(alive(foeSide).length===0)break; await basicAttack(u,foeSide,0.8); await sleep(120);} break;
     case 'corrode': { const t=lowestHp(foeSide); await basicAttack(u,foeSide,1); if(t&&t.alive){ t.poison=(t.poison||0)+2; t.poisonT=3; t.vuln=(t.vuln||0)+1; t.vulnT=3; auraOn(t,'rgba(150,220,120,.55)'); fxOn(t,'☠️'); log(`　☠️ ${t.emoji} ${t.name} 中毒×${t.poison} 易傷×${t.vuln}`,'sk'); } break; }
     case 'hypnosis': alive(foeSide).forEach(f=>{ f.frozen=Math.max(f.frozen,1); f.vuln=(f.vuln||0)+1; f.vulnT=3; auraOn(f,'rgba(155,109,214,.6)'); fxOn(f,'🌀'); }); log(`　🌀 全場催眠！敵人罰站＋易傷`,'sk'); break;
@@ -761,7 +782,8 @@ async function runBattle(){
     // 波間：小回血、清護盾/過熱，撐得久一點
     alive(allies).forEach(a=>{ const h=Math.round(a.maxHp*(0.12+(perks.waveHeal||0))); a.hp=Math.min(a.maxHp,a.hp+h); a.shield=0; a.overheat=false; if(h>0){auraOn(a,'rgba(74,208,125,.4)'); pop(a,'+'+h,'heal');} });
     paintAll(); await sleep(650);
-    if(curWave%5===0 && alive(allies).length>0) await offerBoons();   // 打完魔王 → 抽強化
+    allies = allies.filter(a=>a.alive);   // 清屍體（死掉的小雞/陣亡村民），別堆滿畫面
+    if(curWave%5===0 && allies.length>0) await offerBoons();   // 打完魔王 → 抽強化
   }
   endBattle(curWave-1);
 }
@@ -796,7 +818,8 @@ $('#startBtn').addEventListener('click',()=>{
   showScreen('battle');
   resetAndStart();
 });
-$('#muteTag').addEventListener('click',()=>{ sfxOn=!sfxOn; $('#muteTag').textContent=sfxOn?'🔊':'🔇'; if(sfxOn) audioGo(); });
+$('#muteTag').addEventListener('click',()=>setSound(!sfxOn));
+$('#soundHint').addEventListener('click',()=>setSound(true));
 $('#backBtn').addEventListener('click',()=>{
   if(busy) return;
   showScreen('village');
