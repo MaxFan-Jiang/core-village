@@ -339,7 +339,7 @@ const SKILLS = {
   shield:     {name:"風險對沖", icon:"🛡️", desc:"全隊獲得護盾，吸收下一次傷害", kind:"util"},
   taunt:      {name:"挺身",     icon:"🦺", desc:"嘲諷所有敵人吸引火力到自己，獲得大護盾並大幅減傷", kind:"util"},
   freeze:     {name:"罰站",     icon:"❄️", desc:"凍結一個敵人罰站 3 回合，並使其易傷", kind:"util"},
-  assassinate:{name:"自動化連擊",icon:"🗡️", desc:"連擊最多 3 個敵人；爆擊疊『殺意』，殺意越多爆擊率越高", kind:"atk"},
+  assassinate:{name:"自動化連擊",icon:"🗡️", desc:"連擊最多 3 個敵人；爆擊疊『殺意』提升爆擊率，爆率滿後殺意轉攻擊力", kind:"atk"},
   dodge:      {name:"分鏡預判", icon:"🎯", desc:"全隊各自閃避下一次攻擊", kind:"util"},
   heal:       {name:"散熱模組", icon:"💧", desc:"大幅治療血量最低的隊友，並小補全隊", kind:"util"},
   summon:     {name:"檔期促銷", icon:"🎁", desc:"召喚一個援軍小幫手", kind:"util"},
@@ -601,6 +601,7 @@ function paint(u){
   if(u.dodge) b+=`<span class="badge">🎯</span>`;
   if(u.poison>0) b+=`<span class="badge debuff">☠️${u.poison}</span>`;
   if(u.vuln>0) b+=`<span class="badge debuff">💢${u.vuln}</span>`;
+  if(u.vuln>0 && u.poison>0) b+=`<span class="badge debuff">😵</span>`;
   if(u.frozen>0) b+=`<span class="badge debuff">❄️${u.frozen}</span>`;
   if(u.overheat) b+=`<span class="badge debuff">🥵</span>`;
   u.el.querySelector('.badges').innerHTML=b;
@@ -653,10 +654,12 @@ async function dealDamage(target, amount, opt={}){
 
 async function basicAttack(u, foesArr, mult=1, copt={}){
   const t=lowestHp(foesArr); if(!t) return;
-  const critChance=Math.min(0.97,(u.crit||0)+(u.bloodlust||0)*0.06+(perks.teamCrit||0));
+  const critFloor=(u.crit||0)+(perks.teamCrit||0), blood=u.bloodlust||0;
+  const critChance=Math.min(0.97, critFloor + blood*0.06);
+  const overflowBlood=Math.max(0, blood - Math.ceil(Math.max(0,0.97-critFloor)/0.06));   // 殺意溢出：爆率已滿後多餘的殺意層數
   const crit=(perks.firstStrikeCrit&&u._firstHit)?true:(Math.random()<critChance);
   if(u._firstHit) u._firstHit=false;
-  let atk=u.atk*(u.rally>0?1.25:1)*(perks.atkMul||1)*mult;
+  let atk=u.atk*(u.rally>0?1.25:1)*(perks.atkMul||1)*mult*(1+0.08*overflowBlood);   // 殺意溢出 → 每層 +8% 攻擊（爆率滿後不再浪費、轉成成長）
   if(perks.berserk) atk*=1+0.4*(1-Math.max(0,u.hp)/u.maxHp);
   const base=atk*(0.9+Math.random()*0.25);
   const cdmg=(u.critDmg||1.8)+(perks.critDmg||0);
@@ -710,7 +713,7 @@ function mkFoeAlly(){
 async function tickStatus(u){
   if(u.alive && u.regen>0 && u.regenT>0){ const h=u.regen; u.hp=Math.min(u.maxHp,u.hp+h); u.regenT--; if(u.regenT<=0)u.regen=0; fxOn(u,'➕'); pop(u,'+'+h,'heal'); paintAll(); await sleep(140); }
   if(u.poison>0 && u.poisonT>0){
-    const dmg=Math.round(u.poison*9*(1+(perks.poisonMul||0)));   // 每層毒傷 7→9（毒流更有感）
+    const dmg=Math.max(1,Math.round(u.maxHp*0.02*u.poison*(1+(perks.poisonMul||0))));   // 毒改吃%血量：每層 2% maxHp/回（隨敵血縮放、追得上%成長；對高血魔王特別有感；劇毒boon再加成）
     u.hp-=dmg; u.poisonT--; if(u.poisonT<=0){ u.poison=Math.max(0,u.poison-1); if(u.poison>0)u.poisonT=2; }   // 中毒層數逐層衰減（不再一次清空），讓毒流疊得起來
     hurtFx(u); fxOn(u,'☠️'); pop(u,'-'+dmg,'dmg'); sfx('poison');
     log(`　☠️ ${u.emoji} ${u.name} 中毒掉 ${dmg}`,'dm');
@@ -744,7 +747,8 @@ async function enemyTurn(u){
   const t=taunters.length?taunters[0]:rand(allies);   // 有人嘲諷就打他
   log(`${u.emoji} ${u.name} 攻擊 ${t.emoji} ${t.name}`,'dm');
   lungeFx(u); await sleep(165);
-  await dealDamage(t, u.atk*(0.9+Math.random()*0.25));
+  const weak=(u.vuln>0 && u.poison>0)?Math.max(0.4,1-0.08*u.vuln):1;   // 虛弱：易傷+中毒的敵人攻擊力 -8%/層（最多-60%）→ 易傷流/毒流的減傷 niche
+  await dealDamage(t, u.atk*weak*(0.9+Math.random()*0.25));
   await sleep(330);
 }
 
