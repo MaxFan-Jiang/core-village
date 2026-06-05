@@ -236,7 +236,6 @@
 </head>
 <body>
 <canvas id="cf"></canvas>
-<audio id="bgm" loop preload="none" src="music/bgm.m4a"></audio>
 <div class="wrap">
   <header>
     <div class="chip">芯覺村 · CORE VILLAGE</div>
@@ -355,8 +354,8 @@ const $ = s => document.querySelector(s);
 const sleep = ms => new Promise(r=>setTimeout(r, ms/SPEED));
 
 /* ---------- 音效（瀏覽器即時合成，無音檔）---------- */
-let actx=null, masterG=null, sfxOn=false;   // 預設關（同事在旁邊）；玩家自己開
-function audioInit(){ if(actx) return; try{ actx=new (window.AudioContext||window.webkitAudioContext)(); masterG=actx.createGain(); masterG.gain.value=0.32; masterG.connect(actx.destination);}catch(e){ actx=null; } }
+let actx=null, masterG=null, bgmGain=null, sfxOn=false, bgmOn=false, bgmTimer=null;   // 預設關（同事在旁邊）；玩家自己開
+function audioInit(){ if(actx) return; try{ actx=new (window.AudioContext||window.webkitAudioContext)(); masterG=actx.createGain(); masterG.gain.value=0.32; masterG.connect(actx.destination); bgmGain=actx.createGain(); bgmGain.gain.value=0.55; bgmGain.connect(masterG);}catch(e){ actx=null; } }
 function audioGo(){ audioInit(); if(actx&&actx.state==='suspended') actx.resume(); }
 function tone(freq,dur,type='sine',vol=0.25,slideTo=null,when=0){
   if(!actx||!sfxOn) return;
@@ -392,14 +391,38 @@ const SFX={
 };
 function sfx(n){ try{ (SFX[n]||(()=>{}))(); }catch(e){} }
 /* 主開關：音效 + 背景音樂一起（預設關，玩家自己開）*/
+/* 背景音樂：程式合成的 chiptune loop（Am–F–C–G，貝斯＋pad＋琶音；無音檔、零版權、配像素風）*/
+const BGM=[
+  {bass:110.00, arp:[220.00,261.63,329.63]},  // Am
+  {bass:87.31,  arp:[174.61,220.00,261.63]},  // F
+  {bass:130.81, arp:[261.63,329.63,392.00]},  // C
+  {bass:98.00,  arp:[196.00,246.94,293.66]},  // G
+];
+const E8=0.3, ARP=[0,1,2,1,0,1,2,1];
+function bnote(f,when,dur,type,vol){
+  if(!actx||!bgmGain) return;
+  const t=actx.currentTime+when, o=actx.createOscillator(), g=actx.createGain();
+  o.type=type; o.frequency.value=f;
+  g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.03); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g); g.connect(bgmGain); o.start(t); o.stop(t+dur+0.03);
+}
+function bgmLoop(){
+  if(!bgmOn) return;
+  const bar=E8*8;
+  BGM.forEach((ch,n)=>{ const b=n*bar;
+    bnote(ch.bass,b,E8*3.6,'triangle',0.20); bnote(ch.bass,b+E8*4,E8*3.6,'triangle',0.16);  // 貝斯（1、3 拍）
+    bnote(ch.arp[0],b,bar,'triangle',0.05); bnote(ch.arp[2],b,bar,'triangle',0.04);          // pad（根＋五度，鋪底）
+    ARP.forEach((idx,i)=>bnote(ch.arp[idx],b+i*E8,E8*0.85,'square',0.07));                    // 琶音（流動）
+  });
+  bgmTimer=setTimeout(bgmLoop, bar*BGM.length*1000-60);   // 接著排下一圈
+}
+function startBgm(){ if(bgmOn||!actx) return; bgmOn=true; bgmLoop(); }
+function stopBgm(){ bgmOn=false; if(bgmTimer){ clearTimeout(bgmTimer); bgmTimer=null; } }
 function setSound(on){
   sfxOn=on;
   const m=document.getElementById('muteTag'); if(m) m.textContent=on?'🔊':'🔇';
-  const s=document.getElementById('soundBtn'); if(s) s.textContent=on?'🔊 聲音開著':'🔊 開聲音';
   const r=document.getElementById('soundHint'); if(r) r.style.display=on?'none':'';
-  const b=document.getElementById('bgm');
-  if(on){ audioGo(); if(b){ b.volume=0.3; b.play().catch(()=>{}); } }
-  else if(b){ b.pause(); }
+  if(on){ audioGo(); startBgm(); } else { stopBgm(); }
 }
 
 /* ---------- 招募大廳 ---------- */
