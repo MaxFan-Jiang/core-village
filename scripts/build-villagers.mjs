@@ -30,7 +30,7 @@ const LIMITS = {
   spd: [5, 20],
   crit:[0, 0.6],
 };
-const LEN = { name: 24, job: 48, cry: 80, emoji: 8 };
+const LEN = { name: 24, job: 48, cry: 80, emoji: 8, story: 120, join: 60 };
 // ⚠️ 資安不變式：前端 index.html 把 id 與 skill **原樣**插進 innerHTML（id 進 data-id/元素 id/選擇器、
 //    skill 當 SKILLS[] 的 key），不另外轉義。所以「id 只允許 [a-z0-9-]」「skill 只允許這 12 個」
 //    這兩條 allowlist 就是 id/skill 的唯一 XSS 防線——放寬它們前，務必先在前端 esc() 補上對應轉義。
@@ -80,11 +80,13 @@ for (const file of files) {
     if (seenIds.has(v.id)) fail(file, `「id」重複了：${v.id}。每個人挑一個獨一無二的。`);
     seenIds.add(v.id);
   }
-  // 長度 + HTML 安全
-  for (const k of ["name","job","cry","emoji"]) {
+  // 長度 + HTML 安全（story/join 為選用，有填才檢查）
+  for (const k of ["name","job","cry","emoji","story","join"]) {
     if (typeof v[k] === "string") {
       if ([...v[k]].length > LEN[k]) fail(file, `「${k}」太長了（最多 ${LEN[k]} 字）。`);
       if (HTML_UNSAFE.test(v[k])) fail(file, `「${k}」不能包含 < 或 > 符號（資安考量）。`);
+    } else if (v[k] != null) {
+      fail(file, `「${k}」要是文字。`);
     }
   }
   // 數值範圍（友善平衡護欄，擋掉 hp:999999 這種）
@@ -112,6 +114,8 @@ for (const file of files) {
   // 只保留引擎用得到的欄位（丟掉多餘 key，避免夾帶東西）
   const clean = { id:v.id, name:v.name, job:v.job, emoji:v.emoji, hp:v.hp, atk:v.atk, spd:v.spd, skill:v.skill, cry:v.cry };
   if (v.crit != null) clean.crit = v.crit;
+  if (typeof v.story === "string") clean.story = v.story;
+  if (typeof v.join === "string") clean.join = v.join;
   villagers.push(clean);
 }
 
