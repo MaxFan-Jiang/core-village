@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// 公播排行榜的安全規則：人人可讀（公播）、可新增一筆合法分數、不可改不可刪。
+// 真正的安全靠這份規則，不是靠藏 web config（那串本來就是公開的）。
+//
+// ⚠️ 已知限制：沒有登入驗證，理論上有人能用 console 直接送一個假高分。
+//    SPEC §7-2 已拍板：cohort 友善賽 v1 可接受，之後要防作弊再加（例如 App Check / 登入 / 後端記分）。
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /village-scores/{id} {
+      allow read: if true;
+      allow create: if isValidScore(request.resource.data);
+      allow update, delete: if false;   // 分數送出後不可竄改
+    }
+
+    // 其他路徑一律拒絕
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidScore(d) {
+      return d.keys().hasOnly(['handle', 'wave', 'team', 'teamEmojis', 'ts'])
+        && d.handle is string && d.handle.size() >= 1 && d.handle.size() <= 16
+        && d.wave is int && d.wave >= 0 && d.wave <= 10000
+        && d.team is list && d.team.size() <= 4
+        && d.teamEmojis is list && d.teamEmojis.size() <= 4
+        && d.ts == request.time;            // 必須用 serverTimestamp，擋掉假時間
+    }
+  }
+}

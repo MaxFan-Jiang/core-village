@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>芯覺 · GitHub 保母教學｜從零到你的第一個 PR</title>
+<meta name="description" content="不碰終端機，也能在 GitHub 留下你的第一個貢獻。芯覺數位為共學夥伴準備的手把手教學。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --gold:#C9A96E; --gold-hi:#D4B87A; --gold-deep:#a68239;
+    --navy:#0A0F1E; --navy2:#141b30; --navy3:#1d2740;
+    --cream:#f5f5f2; --paper:#ffffff; --ink:#1f2230; --ink-soft:#5a5f70;
+    --sage:#7aab8e; --sage-bg:#eef3ef; --sage-deep:#4d7a5e;
+    --line:#e7e3da;
+    --gh-green:#1f883d; --gh-blue:#0969da; --gh-gray:#656d76; --gh-border:#d1d9e0;
+    --serif:'Noto Serif TC',serif; --sans:'Noto Sans TC',system-ui,sans-serif;
+    --shadow:0 10px 40px rgba(20,27,48,.10);
+    --shadow-lg:0 24px 70px rgba(20,27,48,.18);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:var(--sans); color:var(--ink); background:var(--cream);
+    line-height:1.85; -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  }
+  ::selection{background:var(--gold);color:#fff}
+
+  /* progress bar */
+  #progress{position:fixed;top:0;left:0;height:4px;width:0;z-index:100;
+    background:linear-gradient(90deg,var(--gold-deep),var(--gold),var(--gold-hi));
+    box-shadow:0 0 12px rgba(201,169,110,.6);transition:width .1s linear}
+
+  /* step rail (desktop) */
+  #rail{position:fixed;top:50%;right:26px;transform:translateY(-50%);z-index:90;
+    display:flex;flex-direction:column;gap:14px}
+  #rail a{width:11px;height:11px;border-radius:50%;background:#cfc8b8;
+    border:2px solid transparent;transition:.25s;position:relative}
+  #rail a:hover{transform:scale(1.3)}
+  #rail a.on{background:var(--gold);border-color:var(--gold-deep);box-shadow:0 0 0 4px rgba(201,169,110,.18)}
+  #rail a span{position:absolute;right:22px;top:50%;transform:translateY(-50%);
+    white-space:nowrap;font-size:12px;color:var(--ink-soft);background:#fff;
+    padding:3px 9px;border-radius:6px;box-shadow:var(--shadow);opacity:0;
+    pointer-events:none;transition:.2s}
+  #rail a:hover span{opacity:1}
+  @media(max-width:980px){#rail{display:none}}
+
+  .wrap{max-width:880px;margin:0 auto;padding:0 24px}
+  section{padding:78px 0;position:relative}
+
+  /* reveal */
+  .reveal{opacity:0;transform:translateY(30px);transition:.8s cubic-bezier(.2,.7,.2,1)}
+  .reveal.in{opacity:1;transform:none}
+  .reveal.d1{transition-delay:.1s}.reveal.d2{transition-delay:.2s}
+  .reveal.d3{transition-delay:.3s}.reveal.d4{transition-delay:.4s}
+
+  h1,h2,h3{font-family:var(--serif);line-height:1.4;letter-spacing:.01em}
+  .kicker{font-size:13px;letter-spacing:.32em;color:var(--gold-deep);
+    font-weight:700;margin-bottom:14px;text-transform:uppercase}
+  h2{font-size:clamp(26px,4.4vw,40px);color:var(--ink);font-weight:900;margin-bottom:8px}
+  .lead{font-size:18px;color:var(--ink-soft);margin-top:14px;max-width:62ch}
+  p{font-size:16.5px}
+  .divider{width:46px;height:4px;border-radius:3px;background:var(--gold);margin:20px 0 30px}
+
+  /* ===== HERO ===== */
+  #hero{min-height:100vh;display:flex;align-items:center;justify-content:center;
+    text-align:center;background:radial-gradient(120% 90% at 50% -10%,#1c2540 0%,var(--navy) 55%,#070a14 100%);
+    color:#fff;overflow:hidden;padding:90px 24px}
+  #hero .stars{position:absolute;inset:0;overflow:hidden}
+  #hero .stars i{position:absolute;width:3px;height:3px;border-radius:50%;
+    background:var(--gold);opacity:.0;animation:twinkle 5s infinite}
+  @keyframes twinkle{0%,100%{opacity:0;transform:translateY(0)}50%{opacity:.7;transform:translateY(-14px)}}
+  #hero .glow{position:absolute;width:560px;height:560px;border-radius:50%;
+    background:radial-gradient(circle,rgba(201,169,110,.22),transparent 65%);
+    top:-120px;filter:blur(8px);animation:float 9s ease-in-out infinite}
+  @keyframes float{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,26px)}}
+  #hero .inner{position:relative;z-index:2;max-width:760px}
+  .brand-chip{display:inline-flex;align-items:center;gap:9px;font-size:13px;letter-spacing:.2em;
+    color:var(--gold);border:1px solid rgba(201,169,110,.4);border-radius:50px;
+    padding:8px 18px;margin-bottom:30px;background:rgba(201,169,110,.06)}
+  .brand-chip b{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 10px var(--gold)}
+  #hero h1{font-size:clamp(36px,7.5vw,68px);font-weight:900;color:#fff;
+    text-shadow:0 2px 30px rgba(0,0,0,.4)}
+  #hero h1 .g{color:var(--gold);position:relative;display:inline-block}
+  #hero h1 .g::after{content:'';position:absolute;left:0;bottom:6px;width:100%;height:10px;
+    background:linear-gradient(90deg,transparent,rgba(201,169,110,.35),transparent);
+    animation:shine 3s infinite}
+  @keyframes shine{0%{transform:translateX(-60%);opacity:0}50%{opacity:1}100%{transform:translateX(60%);opacity:0}}
+  #hero .sub{font-size:clamp(16px,2.6vw,21px);color:#c9cde0;margin-top:24px;line-height:1.9}
+  #hero .meta{margin-top:30px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  #hero .meta span{font-size:13.5px;color:#aeb4cc;background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.08);border-radius:50px;padding:7px 16px}
+  .scroll-hint{margin-top:54px;color:var(--gold);font-size:13px;letter-spacing:.2em;animation:bob 2s infinite}
+  .scroll-hint .arr{display:block;margin:10px auto 0;width:20px;height:20px;
+    border-right:2px solid var(--gold);border-bottom:2px solid var(--gold);
+    transform:rotate(45deg)}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(8px)}}
+
+  /* ===== concept cards ===== */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-top:36px}
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:18px;padding:26px 24px;
+    box-shadow:var(--shadow);transition:.35s;position:relative;overflow:hidden}
+  .card:hover{transform:translateY(-6px);box-shadow:var(--shadow-lg);border-color:var(--gold)}
+  .card .ico{font-size:32px;display:block;margin-bottom:14px}
+  .card h3{font-size:19px;margin-bottom:6px}
+  .card .en{font-family:var(--serif);font-size:12.5px;color:var(--gold-deep);letter-spacing:.12em;text-transform:uppercase}
+  .card p{font-size:15px;color:var(--ink-soft);margin-top:10px}
+  .card::before{content:'';position:absolute;top:0;left:0;width:100%;height:4px;
+    background:var(--gold);transform:scaleX(0);transform-origin:left;transition:.35s}
+  .card:hover::before{transform:scaleX(1)}
+
+  /* analogy strip */
+  .analogy{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:14px;
+    background:var(--sage-bg);border:1px solid #d9e6dd;border-radius:14px;padding:16px 20px}
+  .analogy .t{font-weight:700;color:var(--sage-deep)}
+  .analogy .eq{color:var(--sage);font-size:20px;font-weight:300}
+
+  /* ===== browser mockup ===== */
+  .browser{background:#fff;border:1px solid var(--gh-border);border-radius:14px;overflow:hidden;
+    box-shadow:var(--shadow-lg);margin:26px 0}
+  .browser .bar{display:flex;align-items:center;gap:8px;background:#f1f3f6;
+    padding:11px 14px;border-bottom:1px solid var(--gh-border)}
+  .browser .dot{width:12px;height:12px;border-radius:50%}
+  .browser .dot.r{background:#ff5f57}.browser .dot.y{background:#febc2e}.browser .dot.g{background:#28c840}
+  .browser .url{flex:1;background:#fff;border:1px solid var(--gh-border);border-radius:7px;
+    font-size:13px;color:var(--gh-gray);padding:6px 12px;margin-left:8px;font-family:ui-monospace,monospace;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .browser .body{padding:22px}
+
+  /* github ui bits */
+  .gh-btn{display:inline-flex;align-items:center;gap:7px;border-radius:7px;font-size:14px;
+    font-weight:600;padding:7px 14px;border:1px solid var(--gh-border);background:#f6f8fa;color:#1f2328;cursor:default}
+  .gh-btn.green{background:var(--gh-green);color:#fff;border-color:rgba(0,0,0,.08)}
+  .gh-btn.blue{background:var(--gh-blue);color:#fff;border-color:rgba(0,0,0,.08)}
+  .gh-btn.ghost{background:#fff}
+  .gh-repo{display:flex;align-items:center;gap:8px;font-size:18px;margin-bottom:4px}
+  .gh-repo .owner{color:var(--gh-blue)}.gh-repo b{color:var(--gh-blue);font-weight:700}
+  .gh-row{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:11px 14px;border:1px solid var(--gh-border);border-top:none;font-size:14px}
+  .gh-row:first-of-type{border-top:1px solid var(--gh-border);border-radius:8px 8px 0 0;background:#f6f8fa;color:var(--gh-gray);font-size:12.5px}
+  .gh-row:last-of-type{border-radius:0 0 8px 8px}
+  .gh-row .fname{display:flex;align-items:center;gap:9px}
+  .gh-row .fname svg{flex:none}
+  .annot{position:relative;display:inline-block}
+  .pointer{position:absolute;font-size:12.5px;background:var(--navy);color:#fff;padding:5px 10px;
+    border-radius:7px;white-space:nowrap;box-shadow:var(--shadow);z-index:5}
+  .pointer::after{content:'';position:absolute;width:9px;height:9px;background:var(--navy);transform:rotate(45deg)}
+
+  /* step blocks */
+  .step{display:flex;gap:22px;margin-top:8px}
+  .step .num{flex:none;width:46px;height:46px;border-radius:50%;background:var(--navy);color:var(--gold);
+    font-family:var(--serif);font-weight:900;font-size:21px;display:grid;place-items:center;
+    box-shadow:0 6px 18px rgba(10,15,30,.25)}
+  .step .c{flex:1;padding-bottom:30px;border-left:2px dashed var(--line);margin-left:-23px;padding-left:45px;margin-top:6px}
+  .step:last-child .c{border-left:2px dashed transparent}
+  .step h3{font-size:20px;margin-bottom:6px}
+  .step h3 .pill{font-size:12px;font-family:var(--sans);font-weight:700;color:#fff;background:var(--sage);
+    padding:2px 10px;border-radius:50px;margin-left:8px;vertical-align:middle}
+  .step p{color:var(--ink-soft);font-size:16px}
+  .step .tip{font-size:14.5px;color:var(--sage-deep);background:var(--sage-bg);border-left:3px solid var(--sage);
+    padding:10px 16px;border-radius:0 10px 10px 0;margin-top:12px}
+
+  /* practice box */
+  .practice{background:var(--sage-bg);border:1px solid #cfe0d4;border-radius:16px;padding:24px 26px;margin-top:26px;position:relative}
+  .practice .h{color:var(--sage-deep);font-family:var(--serif);font-weight:700;font-size:18px;margin-bottom:8px}
+  .practice ul{margin:6px 0 0 2px;list-style:none}
+  .practice li{padding-left:26px;position:relative;margin:7px 0;font-size:15.5px}
+  .practice li::before{content:'✓';position:absolute;left:0;color:var(--sage-deep);font-weight:700}
+
+  /* dark "remember" box */
+  .remember{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;border-radius:18px;
+    padding:30px 32px;margin-top:30px;box-shadow:var(--shadow-lg);position:relative;overflow:hidden}
+  .remember::before{content:'“';position:absolute;font-family:var(--serif);font-size:140px;color:rgba(201,169,110,.14);top:-30px;right:14px}
+  .remember .k{color:var(--gold);font-size:12px;letter-spacing:.3em;font-weight:700;margin-bottom:10px}
+  .remember p{font-size:19px;font-family:var(--serif);line-height:1.8;position:relative;z-index:2}
+
+  /* ===== PR journey animation ===== */
+  .journey{background:var(--navy);border-radius:20px;padding:40px 26px 30px;margin:30px 0;color:#fff;position:relative;overflow:hidden}
+  .journey h3{color:#fff;text-align:center;font-size:20px;margin-bottom:4px}
+  .journey .st{text-align:center;color:#9aa1bd;font-size:14px;margin-bottom:30px}
+  .track{position:relative;display:flex;justify-content:space-between;align-items:flex-start;
+    max-width:760px;margin:0 auto;flex-wrap:nowrap}
+  .track .line{position:absolute;top:25px;left:6%;right:6%;height:3px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden}
+  .track .line i{position:absolute;inset:0;width:0;background:linear-gradient(90deg,var(--gold-deep),var(--gold));border-radius:3px}
+  .node{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;gap:9px;width:16.6%}
+  .node .ball{width:52px;height:52px;border-radius:50%;background:var(--navy2);border:2px solid rgba(255,255,255,.15);
+    display:grid;place-items:center;font-size:22px;transition:.4s}
+  .node .lb{font-size:12px;color:#9aa1bd;text-align:center;transition:.4s;line-height:1.5}
+  .node.live .ball{background:var(--gold);border-color:var(--gold-hi);color:var(--navy);
+    box-shadow:0 0 0 6px rgba(201,169,110,.2),0 0 24px rgba(201,169,110,.5);transform:scale(1.08)}
+  .node.live .lb{color:#fff;font-weight:700}
+  .node.done .ball{background:rgba(201,169,110,.22);border-color:var(--gold);color:var(--gold)}
+  .replay{display:block;margin:26px auto 0;background:rgba(255,255,255,.07);color:var(--gold);
+    border:1px solid rgba(201,169,110,.4);border-radius:50px;padding:9px 22px;font-size:14px;
+    font-family:var(--sans);cursor:pointer;transition:.25s}
+  .replay:hover{background:rgba(201,169,110,.14)}
+  @media(max-width:620px){
+    .track{flex-wrap:wrap;gap:18px 0;justify-content:space-around}
+    .track .line{display:none}.node{width:33%}
+  }
+
+  /* ===== terminal ===== */
+  .term{background:#0c1020;border-radius:14px;overflow:hidden;box-shadow:var(--shadow-lg);margin:24px 0;border:1px solid #232a44}
+  .term .tbar{display:flex;align-items:center;gap:8px;padding:11px 14px;background:#161c33}
+  .term .tbar .t{margin-left:8px;font-size:12.5px;color:#8a90ad;font-family:ui-monospace,monospace}
+  .term .scr{padding:20px 22px;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:14px;line-height:2;min-height:180px;color:#cdd3ee}
+  .term .pr{color:var(--gold)}.term .cmd{color:#7ee6a8}.term .out{color:#9aa1bd}.term .you{color:#88c0ff}
+  .term .cursor{display:inline-block;width:9px;height:17px;background:var(--gold);vertical-align:-3px;animation:blink 1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+
+  /* ===== FAQ ===== */
+  .faq{margin-top:24px}
+  .faq details{background:var(--paper);border:1px solid var(--line);border-radius:14px;margin-bottom:12px;
+    overflow:hidden;transition:.3s;box-shadow:0 4px 14px rgba(20,27,48,.04)}
+  .faq details[open]{border-color:var(--gold);box-shadow:var(--shadow)}
+  .faq summary{padding:18px 22px;font-weight:700;font-size:16.5px;cursor:pointer;list-style:none;
+    display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary .q{display:flex;align-items:center;gap:12px}
+  .faq summary .q b{color:var(--gold-deep);font-family:var(--serif);font-size:19px}
+  .faq summary .ar{flex:none;width:22px;height:22px;border-radius:50%;background:var(--cream);
+    display:grid;place-items:center;color:var(--gold-deep);transition:.3s;font-size:13px}
+  .faq details[open] summary .ar{transform:rotate(45deg);background:var(--gold);color:#fff}
+  .faq .a{padding:0 22px 20px 56px;color:var(--ink-soft);font-size:15.5px;line-height:1.9}
+  .faq .a code{background:var(--cream);padding:2px 8px;border-radius:6px;font-size:13.5px;color:var(--gold-deep)}
+
+  /* ===== finale ===== */
+  #finale{background:radial-gradient(120% 100% at 50% 0%,#1c2540,var(--navy) 60%,#070a14);
+    color:#fff;text-align:center;padding:96px 24px;position:relative;overflow:hidden}
+  #confetti{position:absolute;inset:0;pointer-events:none}
+  #finale .inner{position:relative;z-index:3;max-width:640px;margin:0 auto}
+  #finale .badge{width:96px;height:96px;border-radius:50%;margin:0 auto 26px;
+    background:linear-gradient(135deg,var(--gold),var(--gold-hi));display:grid;place-items:center;
+    font-size:46px;box-shadow:0 0 0 10px rgba(201,169,110,.16),0 14px 40px rgba(201,169,110,.4);
+    animation:pop 2.4s ease-in-out infinite}
+  @keyframes pop{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+  #finale h2{color:#fff;font-size:clamp(28px,5vw,42px)}
+  #finale p{color:#c9cde0;font-size:18px;margin-top:18px}
+  #finale .slogan{font-family:var(--serif);color:var(--gold);font-size:clamp(18px,3vw,23px);
+    margin-top:34px;line-height:1.8}
+  #finale .cta{display:inline-flex;align-items:center;gap:10px;margin-top:36px;background:var(--gold);
+    color:var(--navy);font-weight:700;font-size:16px;padding:15px 34px;border-radius:50px;
+    text-decoration:none;transition:.3s;box-shadow:0 10px 30px rgba(201,169,110,.4)}
+  #finale .cta:hover{background:var(--gold-hi);transform:translateY(-3px)}
+  footer{background:#070a14;color:#6a7090;text-align:center;padding:30px 24px;font-size:13.5px}
+  footer b{color:var(--gold)}
+
+  /* inline helpers */
+  .hl{color:var(--gold-deep);font-weight:700}
+  .mono{font-family:ui-monospace,monospace;background:var(--cream);padding:2px 8px;border-radius:6px;
+    font-size:14px;color:var(--ink);border:1px solid var(--line)}
+  .note{font-size:14.5px;color:var(--ink-soft);margin-top:10px}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<nav id="rail">
+  <a href="#hero" class="on"><span>開始</span></a>
+  <a href="#why"><span>GitHub 是什麼</span></a>
+  <a href="#words"><span>五個關鍵字</span></a>
+  <a href="#s1"><span>① 註冊帳號</span></a>
+  <a href="#s2"><span>② 認識倉庫</span></a>
+  <a href="#s3"><span>③ 你的第一個 PR</span></a>
+  <a href="#journey"><span>一個 PR 的旅程</span></a>
+  <a href="#s4"><span>④ 讓 AI 幫你</span></a>
+  <a href="#faq"><span>卡關自救</span></a>
+  <a href="#finale"><span>完成</span></a>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="stars" id="stars"></div>
+  <div class="glow" style="left:50%"></div>
+  <div class="inner">
+    <div class="brand-chip"><b></b>芯覺數位 · 共學夥伴專屬</div>
+    <h1>GitHub <span class="g">保母教學</span></h1>
+    <p class="sub">不用會寫程式，也不用碰終端機。<br>跟著走完這一頁，你就能在團隊的 repo 裡，留下屬於你的<span style="color:#fff;font-weight:700">第一個貢獻</span>。</p>
+    <div class="meta">
+      <span>🍼 零基礎友善</span>
+      <span>🖱️ 全程用滑鼠</span>
+      <span>⏱️ 約 20 分鐘</span>
+      <span>🎯 目標：第一個 PR</span>
+    </div>
+    <div class="scroll-hint">往下開始<span class="arr"></span></div>
+  </div>
+</section>
+
+<!-- WHY -->
+<section id="why">
+  <div class="wrap">
+    <div class="kicker reveal">先別緊張</div>
+    <h2 class="reveal d1">GitHub，其實就是一間<br>大家共用的「數位工作室」</h2>
+    <div class="divider reveal d1"></div>
+    <p class="lead reveal d2">你可能聽過「工程師都在 GitHub 上」，覺得它很硬。其實把它想成一間工作室就好：每個人都能進來、看見彼此正在做的東西、把自己的那一塊放上去，而且每一次改動都被完整記錄，永遠不會弄丟。</p>
+
+    <div class="cards">
+      <div class="card reveal d1"><span class="ico">📦</span><span class="en">Repository</span><h3>倉庫</h3><p>一個專案的資料夾。我們的村莊就住在一個倉庫裡，大家的作品都放在這。</p></div>
+      <div class="card reveal d2"><span class="ico">🍴</span><span class="en">Fork</span><h3>分叉</h3><p>把這個倉庫複製一份到你自己的帳號，變成你的遊樂場，怎麼改都不會動到別人。</p></div>
+      <div class="card reveal d3"><span class="ico">💾</span><span class="en">Commit</span><h3>提交</h3><p>一次存檔。像遊戲存檔點，記下「我這一步改了什麼」。</p></div>
+      <div class="card reveal d4"><span class="ico">📬</span><span class="en">Pull Request</span><h3>拉取請求</h3><p>「我改好了，請看看要不要收進去。」一封禮貌的提案信，簡稱 PR。</p></div>
+    </div>
+
+    <div class="remember reveal d2">
+      <div class="k">記住這一句</div>
+      <p>Fork 是「把專案複製一份到你家」，PR 是「我在我家改好了，請你看要不要收進去」。<br>整個 GitHub 協作，就是這兩個動作在來回。</p>
+    </div>
+  </div>
+</section>
+
+<!-- WORDS -->
+<section id="words" style="background:#fbfaf7;border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <div class="kicker reveal">五個關鍵字</div>
+    <h2 class="reveal d1">看到這些字，不要怕</h2>
+    <div class="divider reveal d1"></div>
+    <p class="lead reveal d2">整份教學只會用到這五個詞。先用生活化的方式記起來，等下實際操作時你就會發現：原來就這樣。</p>
+
+    <div style="margin-top:30px">
+      <div class="analogy reveal d1"><span class="t">📦 Repository 倉庫</span><span class="eq">＝</span><span>一個專案的資料夾</span></div>
+      <div class="analogy reveal d1"><span class="t">🍴 Fork 分叉</span><span class="eq">＝</span><span>把別人的專案複製一份到你帳號</span></div>
+      <div class="analogy reveal d2"><span class="t">✏️ Commit 提交</span><span class="eq">＝</span><span>存一次檔，並寫下「這次改了什麼」</span></div>
+      <div class="analogy reveal d2"><span class="t">🌿 Branch 分支</span><span class="eq">＝</span><span>一條平行的草稿線，改壞了也不影響正式版</span></div>
+      <div class="analogy reveal d3"><span class="t">📬 Pull Request 拉取請求</span><span class="eq">＝</span><span>把你的改動，提案給原專案收編</span></div>
+    </div>
+    <p class="note reveal d3">📌 好消息：用網頁版操作時，<span class="hl">Branch 這一步 GitHub 會自動幫你開</span>，你幾乎不用管它。所以真正要動手的，只有 Fork、Commit、Pull Request 三個。</p>
+  </div>
+</section>
+
+<!-- STEP 1 -->
+<section id="s1">
+  <div class="wrap">
+    <div class="kicker reveal">STEP ①</div>
+    <h2 class="reveal d1">註冊一個 GitHub 帳號</h2>
+    <div class="divider reveal d1"></div>
+    <p class="lead reveal d2">如果你已經有帳號，直接跳到下一段。沒有的話，三分鐘就好。</p>
+
+    <div class="browser reveal d2">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="url">https://github.com/signup</span></div>
+      <div class="body">
+        <div style="text-align:center">
+          <div style="font-family:var(--serif);font-size:22px;font-weight:700;margin-bottom:6px">註冊 GitHub</div>
+          <div style="color:var(--gh-gray);font-size:14px;margin-bottom:20px">填 Email → 設密碼 → 取一個帳號名稱</div>
+          <div style="max-width:340px;margin:0 auto;text-align:left">
+            <label style="font-size:13px;color:var(--gh-gray)">Email</label>
+            <div style="border:1px solid var(--gh-border);border-radius:8px;padding:10px 12px;margin:5px 0 14px;font-size:14px;color:#1f2328">you@example.com</div>
+            <label style="font-size:13px;color:var(--gh-gray)">Password</label>
+            <div style="border:1px solid var(--gh-border);border-radius:8px;padding:10px 12px;margin:5px 0 14px;font-size:14px;color:#1f2328;font-family:monospace">••••••••••</div>
+            <label style="font-size:13px;color:var(--gh-gray)">Username（之後別人看到的名字）</label>
+            <div style="border:1px solid var(--gh-border);border-radius:8px;padding:10px 12px;margin:5px 0 16px;font-size:14px;color:#1f2328;font-family:monospace">your-name</div>
+            <div class="gh-btn green" style="width:100%;justify-content:center">建立帳號 Create account</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step reveal d1"><div class="num">1</div><div class="c">
+      <h3>打開註冊頁</h3>
+      <p>到 <span class="mono">github.com/signup</span>，照著填 Email、密碼、帳號名稱（Username）。</p>
+      <div class="tip">💡 Username 是公開的，別人會看到。建議用英文，例如你的英文名字，乾淨好記就好。</div>
+    </div></div>
+    <div class="step reveal d1"><div class="num">2</div><div class="c">
+      <h3>收驗證信</h3>
+      <p>GitHub 會寄一封信到你的 Email，裡面有一組驗證碼或一個按鈕，點一下確認「這個信箱是你的」。</p>
+    </div></div>
+    <div class="step reveal d2"><div class="num">3</div><div class="c">
+      <h3>完成</h3>
+      <p>看到你的個人首頁（一片綠綠的草格子）就成功了。免費方案就夠我們用，全部都不用付費。</p>
+    </div></div>
+
+    <div class="practice reveal d2">
+      <div class="h">🌿 動手做</div>
+      <ul>
+        <li>註冊好帳號，並完成 Email 驗證</li>
+        <li>把你的 Username 記下來，等一下會用到</li>
+        <li>（建議）上傳一張大頭貼，村莊裡比較好認你</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- STEP 2 -->
+<section id="s2" style="background:#fbfaf7;border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <div class="kicker reveal">STEP ②</div>
+    <h2 class="reveal d1">認識一個「倉庫」長什麼樣</h2>
+    <div class="divider reveal d1"></div>
+    <p class="lead reveal d2">這是我們共學村莊的倉庫頁面。先認得這幾個位置，等一下你就知道按鈕在哪。</p>
+
+    <div class="browser reveal d2">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="url">https://github.com/MaxFan-Jiang/core-village</span></div>
+      <div class="body">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:18px">
+          <div class="gh-repo"><span style="font-size:20px">📁</span><span class="owner">MaxFan-Jiang</span><span style="color:var(--gh-gray)">/</span><b>core-village</b></div>
+          <div style="display:flex;gap:8px">
+            <span class="gh-btn ghost annot">⭐ Star
+              <span class="pointer" style="top:-34px;left:50%;transform:translateX(-50%)">給專案按個讚<i style="bottom:-4px;left:50%;margin-left:-4px"></i></span>
+            </span>
+            <span class="gh-btn ghost annot" style="border-color:var(--gold);color:var(--gold-deep);font-weight:700">🍴 Fork
+              <span class="pointer" style="top:-34px;left:50%;transform:translateX(-50%);background:var(--gold-deep)">等一下的主角就是它<i style="bottom:-4px;left:50%;margin-left:-4px;background:var(--gold-deep)"></i></span>
+            </span>
+          </div>
+        </div>
+        <div class="gh-row"><span>📄 名稱</span><span>最後更新</span></div>
+        <div class="gh-row"><span class="fname">📄 README.md</span><span style="color:var(--gh-gray)">村莊介紹</span></div>
+        <div class="gh-row"><span class="fname">📄 CONTRIBUTING.md</span><span style="color:var(--gh-gray)">怎麼加入</span></div>
+        <div class="gh-row"><span class="fname">📁 villagers/</span><span style="color:var(--gh-gray)">大家的角色都在這</span></div>
+      </div>
+    </div>
+
+    <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">
+      <div class="card reveal d1"><span class="ico">📖</span><h3>README.md</h3><p>專案的說明書。打開倉庫第一眼看到的長文，告訴你這裡是什麼、怎麼參與。</p></div>
+      <div class="card reveal d2"><span class="ico">🍴</span><h3>Fork 按鈕</h3><p>在右上角。按下去，就把整個村莊複製一份到你的帳號。</p></div>
+      <div class="card reveal d3"><span class="ico">📁</span><h3>資料夾結構</h3><p>每個人的村民放在 <span class="mono">villagers/</span> 底下自己的一個檔，互不打架。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- STEP 3 -->
+<section id="s3">
+  <div class="wrap">
+    <div class="kicker reveal">STEP ③ · 重頭戲</div>
+    <h2 class="reveal d1">你的第一個貢獻<br><span style="color:var(--gold-deep)">全程用滑鼠，不碰終端機</span></h2>
+    <div class="divider reveal d1"></div>
+    <p class="lead reveal d2">我們的目標很單純：在村莊裡，放進「你的村民」。你只要新增一個小檔案，填上你的名字和幾個欄位就行。GitHub 全程在瀏覽器裡完成。</p>
+
+    <div class="step reveal d1"><div class="num">1</div><div class="c">
+      <h3>按下 Fork<span class="pill">複製到你家</span></h3>
+      <p>在村莊倉庫頁面右上角按 <span class="mono">🍴 Fork</span>。GitHub 會把整個專案複製一份到你的帳號，網址會變成 <span class="mono">github.com/你的名字/core-village</span>。這份是你的，怎麼改都安全。</p>
+    </div></div>
+
+    <div class="step reveal d1"><div class="num">2</div><div class="c">
+      <h3>複製範本檔</h3>
+      <p>進到 <span class="mono">villagers/</span>，打開範本 <span class="mono">villagers/_example.json</span>，把裡面的內容複製一份，在 <span class="mono">villagers/</span> 底下新增一個用你代號命名的檔，例如 <span class="mono">villagers/pixel-cat.json</span>。</p>
+      <div class="tip">💡 在 GitHub 網頁裡，建立檔案時把檔名直接打成 <span class="mono">villagers/你的代號.json</span>，GitHub 就會幫你把檔放到對的位置。不用先在電腦上建。</div>
+    </div></div>
+
+    <div class="step reveal d2"><div class="num">3</div><div class="c">
+      <h3>編輯你的小檔案</h3>
+      <p>點開檔案右上角的鉛筆 ✏️，把內容改成你的。就這麼幾行：</p>
+    </div></div>
+
+    <div class="browser reveal d2" style="margin-left:68px">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="url">villagers/pixel-cat.json</span></div>
+      <div class="body" style="font-family:ui-monospace,monospace;font-size:14px;line-height:2;background:#fbfaf7">
+        <div style="color:#656d76">{</div>
+        <div style="padding-left:20px"><span style="color:#0969da">"id"</span>: <span style="color:#0a7b3e">"pixel-cat"</span>,</div>
+        <div style="padding-left:20px"><span style="color:#0969da">"name"</span>: <span style="color:#0a7b3e">"像素貓"</span>,</div>
+        <div style="padding-left:20px"><span style="color:#0969da">"job"</span>: <span style="color:#0a7b3e">"自由創作 · 來蓋村民"</span>,</div>
+        <div style="padding-left:20px"><span style="color:#0969da">"emoji"</span>: <span style="color:#0a7b3e">"🐱"</span>,</div>
+        <div style="padding-left:20px"><span style="color:#0969da">"hp"</span>: <span style="color:#0a7b3e">90</span>, <span style="color:#0969da">"atk"</span>: <span style="color:#0a7b3e">20</span>, <span style="color:#0969da">"spd"</span>: <span style="color:#0a7b3e">14</span>,</div>
+        <div style="padding-left:20px"><span style="color:#0969da">"skill"</span>: <span style="color:#0a7b3e">"dodge"</span>,</div>
+        <div style="padding-left:20px"><span style="color:#0969da">"cry"</span>: <span style="color:#0a7b3e">"我閃，你打不到我。"</span></div>
+        <div style="color:#656d76">}</div>
+      </div>
+    </div>
+
+    <div class="step reveal d2"><div class="num">4</div><div class="c">
+      <h3>提交改動（Commit）<span class="pill">＝存檔</span></h3>
+      <p>改完往下找 <span class="mono">Commit changes</span>。在訊息欄寫一句白話的「我做了什麼」，例如 <span class="mono">加入像素貓這個村民</span>，按綠色按鈕。</p>
+      <div class="tip">💡 Commit 訊息就是寫給人看的存檔備註，用中文、講人話都可以。</div>
+    </div></div>
+
+    <div class="step reveal d3"><div class="num">5</div><div class="c">
+      <h3>開 Pull Request（PR）<span class="pill">送出提案</span></h3>
+      <p>回到你的 fork 頁面，GitHub 通常會跳出一條黃色提示，寫著 <span class="mono">Compare & pull request</span>，點它。確認一下要送的內容，按 <span class="mono">Create pull request</span>。</p>
+      <p style="margin-top:8px">送出之後，這封「提案信」就到了村長（Max）手上。他看過、按下 Merge，你的村民就正式進到公開村莊裡了。🎉</p>
+    </div></div>
+
+    <div class="browser reveal d3">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="url">github.com/你的名字/core-village</span></div>
+      <div class="body">
+        <div style="background:#ddf4ff;border:1px solid #54aeff;border-radius:10px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <span style="font-size:14px;color:#0969da">🌿 你剛剛推了一個改動到 <b>villagers/pixel-cat.json</b></span>
+          <span class="gh-btn green">Compare &amp; pull request</span>
+        </div>
+        <div style="text-align:center;color:var(--gh-gray);font-size:13px;margin-top:14px">點綠色按鈕 → 下一頁按 Create pull request → 完成 ✅</div>
+      </div>
+    </div>
+
+    <div class="remember reveal d2">
+      <div class="k">整段濃縮成一句</div>
+      <p>Fork 一份 → 在 villagers/ 加一個你的 .json → 改好欄位 → Commit → 開 PR。<br>五步，全部在瀏覽器裡，滑鼠就能做完。</p>
+    </div>
+  </div>
+</section>
+
+<!-- JOURNEY animation -->
+<section id="journey" style="background:#fbfaf7;border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <div class="kicker reveal">看一遍全貌</div>
+    <h2 class="reveal d1">一個 PR 的旅程</h2>
+    <div class="divider reveal d1"></div>
+    <p class="lead reveal d2">你剛剛做的事，在後台是這樣跑的。看著它走一遍，你會更安心：每一步都看得到、改錯也救得回來。</p>
+
+    <div class="journey reveal d2" id="journeyBox">
+      <h3>從你的滑鼠，到公開的村莊隊伍</h3>
+      <div class="st">自動循環播放 · 也可以手動重播</div>
+      <div class="track">
+        <div class="line"><i id="trackFill"></i></div>
+        <div class="node" data-i="0"><div class="ball">🍴</div><div class="lb">Fork<br>複製到你家</div></div>
+        <div class="node" data-i="1"><div class="ball">✏️</div><div class="lb">Edit<br>改你的檔案</div></div>
+        <div class="node" data-i="2"><div class="ball">💾</div><div class="lb">Commit<br>存檔</div></div>
+        <div class="node" data-i="3"><div class="ball">📬</div><div class="lb">Pull Request<br>送出提案</div></div>
+        <div class="node" data-i="4"><div class="ball">👀</div><div class="lb">Review<br>村長過目</div></div>
+        <div class="node" data-i="5"><div class="ball">🎉</div><div class="lb">Merge<br>村民上線</div></div>
+      </div>
+      <button class="replay" id="replayBtn">↻ 再播一次</button>
+    </div>
+  </div>
+</section>
+
+<!-- STEP 4 Claude Code -->
+<section id="s4">
+  <div class="wrap">
+    <div class="kicker reveal">STEP ④ · 進階（可選）</div>
+    <h2 class="reveal d1">等你上手了，讓 Claude Code 幫你做</h2>
+    <div class="divider reveal d1"></div>
+    <p class="lead reveal d2">上面的網頁版，是給「第一次」用的最穩路徑。等課程教到 Claude Code 之後，你連 git 指令都不用記。把你的村民描述給它，剩下的它會幫你做完，包括開 PR。</p>
+
+    <div class="term reveal d2">
+      <div class="tbar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+        <span class="t">claude code — core-village</span></div>
+      <div class="scr" id="termScr"></div>
+    </div>
+
+    <p class="note reveal d2">📌 這一段先看過就好，<span class="hl">不用現在做</span>。課程會手把手帶你安裝與操作 Claude Code。重點是讓你知道：等你會用 AI 之後，貢獻 GitHub 會變得非常輕鬆。</p>
+
+    <div class="practice reveal d2">
+      <div class="h">🌿 兩條路，挑現在做得到的</div>
+      <ul>
+        <li><b>新手路線</b>：用上面 STEP ③ 的網頁版，滑鼠點一點就完成第一個 PR</li>
+        <li><b>進階路線</b>：學會 Claude Code 後，跟它說「幫我做一張村民卡並開 PR」，它全包</li>
+        <li>兩條路殊途同歸，最後都是在村莊裡放進你的村民</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" style="background:#fbfaf7;border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <div class="kicker reveal">卡關自救</div>
+    <h2 class="reveal d1">遇到這些，別慌</h2>
+    <div class="divider reveal d1"></div>
+    <p class="lead reveal d2">新手最常卡的幾關，先在這裡幫你準備好答案。GitHub 的好處是：幾乎沒有什麼是救不回來的。</p>
+
+    <div class="faq reveal d2">
+      <details><summary><span class="q"><b>Q</b>我把檔案改壞了，怎麼辦？</span><span class="ar">+</span></summary>
+        <div class="a">完全不用怕。你動的是你 fork 裡的複本，<span class="hl">原本的村莊一個字都沒被改到</span>。真的亂了，最簡單的做法：把你的 fork 刪掉，重新 Fork 一次，等於重新發一份乾淨的複本。你的每一次 Commit 也都留著記錄，隨時能回到上一個存檔點。</div>
+      </details>
+      <details><summary><span class="q"><b>Q</b>看到「merge conflict」這個紅字，是不是我搞砸了？</span><span class="ar">+</span></summary>
+        <div class="a">不是。它只是說「同一行，兩個人都改了，GitHub 不知道該聽誰的」。因為我們刻意讓<span class="hl">每個人只動自己那一個檔</span>，所以你幾乎不會遇到。萬一真的遇到，直接在 PR 留言 tag 村長，或丟到 LINE 群，30 秒幫你解掉。</div>
+      </details>
+      <details><summary><span class="q"><b>Q</b>忘記 GitHub 密碼了？</span><span class="ar">+</span></summary>
+        <div class="a">登入頁點 <code>Forgot password</code>，GitHub 會寄重設信到你註冊的 Email。順帶一提，第一次操作時 GitHub 可能會要你做一次手機或 Email 的兩步驟驗證，那是保護你帳號的，照著做就好。</div>
+      </details>
+      <details><summary><span class="q"><b>Q</b>我的 PR 被回覆「要再改一下」，是被拒絕了嗎？</span><span class="ar">+</span></summary>
+        <div class="a">不是。這在工程師世界裡是<span class="hl">最正常的日常</span>，叫 code review。村長或夥伴給你一點建議，你回到自己的 fork 再改、再 Commit，PR 會自動更新，不用重開。來回幾次，作品會更好。被 review 不是被否定，是被認真對待。</div>
+      </details>
+      <details><summary><span class="q"><b>Q</b>別人後來更新了村莊，我的 fork 會不會太舊？</span><span class="ar">+</span></summary>
+        <div class="a">會，但一鍵就能追上。到你 fork 的頁面，會看到一個 <code>Sync fork</code> 按鈕，點它，你的複本就跟最新的村莊同步了。建議每次要新增村民前，先按一下。</div>
+      </details>
+      <details><summary><span class="q"><b>Q</b>我真的零基礎，會不會太難？</span><span class="ar">+</span></summary>
+        <div class="a">這份教學就是為零基礎寫的。我們村裡有老師、有插畫家、有業務、有機構工程師，大部分人都沒寫過程式。第一個 PR 只是改幾行字、填個名字。你做得到，而且做完那一刻會很有感。卡住了，LINE 群隨時喊一聲。</div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- FINALE -->
+<section id="finale">
+  <canvas id="confetti"></canvas>
+  <div class="inner">
+    <div class="badge">🧑‍🌾</div>
+    <h2>準備好，去放進你的村民了</h2>
+    <p>你已經懂了 GitHub 協作的全部核心：Fork、Commit、Pull Request。<br>剩下的，就是動手把你的第一個村民，放進村莊裡。</p>
+    <div class="slogan">溝通就像寫 Code，<br>給對 Prompt，潛意識就會自動執行。</div>
+    <a href="#hero" class="cta">↑ 回到頂端，再走一遍</a>
+  </div>
+</section>
+
+<footer>
+  芯覺數位 <b>Core Awakening AI Tech</b> · 共學夥伴 GitHub 入門教學<br>
+  把每個人的第一個貢獻，焊進同一座村莊。
+</footer>
+
+<script>
+/* progress + rail */
+const prog=document.getElementById('progress');
+const railLinks=[...document.querySelectorAll('#rail a')];
+const sections=railLinks.map(a=>document.querySelector(a.getAttribute('href')));
+function onScroll(){
+  const h=document.documentElement;
+  const sc=h.scrollTop,max=h.scrollHeight-h.clientHeight;
+  prog.style.width=(max>0?sc/max*100:0)+'%';
+  let idx=0;
+  sections.forEach((s,i)=>{ if(s && s.getBoundingClientRect().top<=window.innerHeight*0.4) idx=i; });
+  railLinks.forEach((a,i)=>a.classList.toggle('on',i===idx));
+}
+window.addEventListener('scroll',onScroll,{passive:true});onScroll();
+
+/* reveal */
+const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}})},{threshold:.12});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+/* hero stars */
+const st=document.getElementById('stars');
+for(let i=0;i<46;i++){const s=document.createElement('i');
+  s.style.left=Math.random()*100+'%';s.style.top=Math.random()*100+'%';
+  s.style.animationDelay=Math.random()*5+'s';s.style.opacity=Math.random()*.5+.2;
+  s.style.transform=`scale(${Math.random()*1.4+.4})`;st.appendChild(s);}
+
+/* PR journey animation */
+const nodes=[...document.querySelectorAll('.node')];
+const fill=document.getElementById('trackFill');
+let jTimer=null;
+function playJourney(){
+  clearInterval(jTimer);
+  nodes.forEach(n=>n.classList.remove('live','done'));
+  fill.style.transition='none';fill.style.width='0';
+  let i=0;
+  const stepW=100/(nodes.length-1);
+  function step(){
+    nodes.forEach((n,k)=>{n.classList.toggle('live',k===i);n.classList.toggle('done',k<i);});
+    fill.style.transition='width .55s ease';
+    fill.style.width=(i*stepW)+'%';
+    i++;
+    if(i<nodes.length){jTimer=setTimeout(step,820);}
+    else{jTimer=setTimeout(()=>{nodes.forEach(n=>n.classList.add('done'));
+      setTimeout(playJourney,2600);},820);}
+  }
+  step();
+}
+let jStarted=false;
+new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting&&!jStarted){jStarted=true;playJourney();}})},{threshold:.4})
+  .observe(document.getElementById('journeyBox'));
+document.getElementById('replayBtn').addEventListener('click',playJourney);
+
+/* terminal typewriter */
+const termLines=[
+  {t:'pr',x:'➜ core-village ',c:'you',y:'claude'},
+  {t:'you',x:'  幫我在 villagers/ 底下做一張我的村民卡，走閃避流，然後開 PR'},
+  {t:'gap'},
+  {t:'out',x:'● 好的，我來處理：'},
+  {t:'cmd',x:'  ✓ 建立 villagers/pixel-cat.json'},
+  {t:'cmd',x:'  ✓ 幫你挑了 dodge 閃避技能、填好數值'},
+  {t:'cmd',x:'  ✓ git commit -m "加入像素貓這個村民"'},
+  {t:'cmd',x:'  ✓ git push 到你的 fork'},
+  {t:'cmd',x:'  ✓ 已開好 Pull Request #12'},
+  {t:'gap'},
+  {t:'out',x:'● 完成！你的村民提案已送出，等村長 merge 就上線 🎉'},
+];
+const termScr=document.getElementById('termScr');
+function typeTerminal(){
+  termScr.innerHTML='';let li=0;
+  function line(){
+    if(li>=termLines.length){const c=document.createElement('span');c.className='cursor';termScr.appendChild(c);return;}
+    const L=termLines[li];
+    if(L.t==='gap'){termScr.appendChild(document.createElement('br'));li++;return line();}
+    const div=document.createElement('div');
+    if(L.t==='pr'){div.innerHTML='<span class="pr">'+L.x+'</span><span class="you">'+L.y+' &gt;</span>';termScr.appendChild(div);li++;return setTimeout(line,260);}
+    div.className=L.t;termScr.appendChild(div);
+    const txt=L.x;let ci=0;
+    (function ch(){div.textContent=txt.slice(0,ci++);
+      if(ci<=txt.length){setTimeout(ch, L.t==='you'?38:14);}else{li++;setTimeout(line, L.t==='you'?420:240);}})();
+  }
+  line();
+}
+let tStarted=false;
+new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting&&!tStarted){tStarted=true;typeTerminal();}})},{threshold:.4})
+  .observe(termScr);
+
+/* confetti finale */
+const cv=document.getElementById('confetti');const ctx=cv.getContext('2d');
+let parts=[],raf=null,confStarted=false;
+const COL=['#C9A96E','#D4B87A','#7aab8e','#ffffff','#a68239'];
+function sizeCv(){cv.width=cv.offsetWidth;cv.height=cv.offsetHeight;}
+function burst(){
+  sizeCv();parts=[];
+  for(let i=0;i<140;i++){parts.push({
+    x:Math.random()*cv.width,y:-20-Math.random()*cv.height*0.5,
+    w:6+Math.random()*7,h:9+Math.random()*9,
+    vy:2+Math.random()*3.5,vx:-1.5+Math.random()*3,
+    rot:Math.random()*6.28,vr:-0.16+Math.random()*0.32,
+    col:COL[Math.floor(Math.random()*COL.length)],life:1});}
+  cancelAnimationFrame(raf);anim();
+}
+function anim(){
+  ctx.clearRect(0,0,cv.width,cv.height);let alive=false;
+  parts.forEach(p=>{p.y+=p.vy;p.x+=p.vx;p.rot+=p.vr;p.vy+=0.02;
+    if(p.y<cv.height+30){alive=true;}
+    ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rot);ctx.fillStyle=p.col;
+    ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);ctx.restore();});
+  if(alive)raf=requestAnimationFrame(anim);else ctx.clearRect(0,0,cv.width,cv.height);
+}
+new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting&&!confStarted){confStarted=true;burst();
+  setTimeout(()=>{confStarted=false;},200);}})},{threshold:.5}).observe(document.getElementById('finale'));
+window.addEventListener('resize',sizeCv);
+</script>
+</body>
+</html>

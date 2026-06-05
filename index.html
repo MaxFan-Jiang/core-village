@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>芯覺村 · 村民出戰</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@700;900&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --gold:#C9A96E;--gold-hi:#D4B87A;--gold-deep:#a68239;
+    --navy:#0A0F1E;--navy2:#141b30;--navy3:#1d2740;--line:#2a3350;
+    --green:#4ad07d;--red:#ff5f6d;--cyan:#5ec8e0;--sage:#7aab8e;
+    --serif:'Noto Serif TC',serif;--sans:'Noto Sans TC',system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:var(--sans);background:radial-gradient(130% 90% at 50% -10%,#1b2440,var(--navy) 60%,#06080f);
+    color:#e8ecf7;min-height:100vh;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:26px 20px 60px}
+  header{text-align:center;margin-bottom:8px}
+  .chip{display:inline-block;font-size:12px;letter-spacing:.24em;color:var(--gold);
+    border:1px solid rgba(201,169,110,.4);border-radius:50px;padding:6px 16px;margin-bottom:14px}
+  h1{font-family:var(--serif);font-size:clamp(26px,5vw,40px);font-weight:900}
+  h1 .g{color:var(--gold)}
+  .sub{color:#9aa1bd;margin-top:8px;font-size:15px}
+  .note-top{background:rgba(201,169,110,.08);border:1px solid rgba(201,169,110,.25);border-radius:12px;
+    padding:12px 18px;margin:18px auto 0;max-width:760px;font-size:14px;color:#c7cce0;text-align:center}
+  .note-top b{color:var(--gold)}
+
+  /* phase panels */
+  .panel{margin-top:22px}
+  .ttl{font-family:var(--serif);font-weight:700;font-size:20px;display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .ttl .n{width:28px;height:28px;border-radius:50%;background:var(--gold);color:var(--navy);
+    display:grid;place-items:center;font-size:15px;font-weight:900}
+  .ttl .meta{margin-left:auto;font-family:var(--sans);font-size:14px;color:var(--gold);font-weight:700}
+
+  /* roster */
+  .roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:14px;margin-top:14px}
+  .vcard{background:linear-gradient(160deg,var(--navy2),var(--navy3));border:2px solid var(--line);
+    border-radius:16px;padding:16px;cursor:pointer;transition:.2s;position:relative;overflow:hidden}
+  .vcard:hover{border-color:var(--gold-deep);transform:translateY(-3px)}
+  .vcard.sel{border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,169,110,.22),0 10px 26px rgba(0,0,0,.3)}
+  .vcard.sel::after{content:'✓ 出戰';position:absolute;top:10px;right:-2px;background:var(--gold);color:var(--navy);
+    font-size:12px;font-weight:700;padding:3px 12px 3px 10px;border-radius:50px 0 0 50px}
+  .vhead{display:flex;align-items:center;gap:12px}
+  .vemo{font-size:34px;filter:drop-shadow(0 3px 6px rgba(0,0,0,.4))}
+  .vname{font-weight:700;font-size:16px}
+  .vjob{font-size:12.5px;color:#8e96b5}
+  .vstats{display:flex;gap:14px;margin:12px 0 10px;font-size:13px;color:#aeb4cc}
+  .vstats b{color:#fff;font-weight:700}
+  .vskill{background:rgba(94,200,224,.1);border:1px solid rgba(94,200,224,.3);border-radius:9px;
+    padding:8px 10px;font-size:12.5px;color:#cfeaf2}
+  .vskill .sn{color:var(--cyan);font-weight:700}
+  .vcry{font-size:12.5px;color:#9aa1bd;font-style:italic;margin-top:9px;line-height:1.6}
+  .vfile{margin-top:10px;font-size:11.5px;color:var(--gold-deep);cursor:pointer;user-select:none}
+  .vfile:hover{color:var(--gold)}
+  .vjson{display:none;margin-top:8px;background:#0b0f1d;border:1px solid var(--line);border-radius:8px;
+    padding:10px;font-family:ui-monospace,monospace;font-size:11px;line-height:1.7;color:#bfe6c9;white-space:pre-wrap}
+  .vjson.show{display:block}
+
+  .controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:18px;justify-content:center}
+  .btn{background:var(--gold);color:var(--navy);font-family:var(--sans);font-weight:700;font-size:15px;
+    border:none;border-radius:50px;padding:13px 30px;cursor:pointer;transition:.2s;box-shadow:0 8px 22px rgba(201,169,110,.3)}
+  .btn:hover{background:var(--gold-hi);transform:translateY(-2px)}
+  .btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+  .btn.ghost{background:transparent;color:var(--gold);border:1px solid rgba(201,169,110,.5);box-shadow:none}
+  .btn.ghost:hover{background:rgba(201,169,110,.12)}
+  .teamcount{font-size:14px;color:#9aa1bd}
+
+  /* battle */
+  #battle{display:none}
+  #battle.on{display:block}
+  .arena{background:linear-gradient(180deg,rgba(20,27,48,.6),rgba(10,15,30,.6));border:1px solid var(--line);
+    border-radius:18px;padding:20px;margin-top:14px;position:relative;overflow:hidden}
+  .arena.shake{animation:shake .3s}
+  .arena.shakeBig{animation:shakeBig .36s}
+  @keyframes shake{0%,100%{transform:translate(0,0)}25%{transform:translate(-5px,2px)}50%{transform:translate(5px,-2px)}75%{transform:translate(-3px,1px)}}
+  @keyframes shakeBig{0%,100%{transform:translate(0,0)}15%{transform:translate(-9px,4px)}35%{transform:translate(9px,-4px)}55%{transform:translate(-7px,3px)}78%{transform:translate(6px,-2px)}}
+  .hitflash{position:absolute;left:50%;top:24%;width:64px;height:64px;transform:translate(-50%,-50%);border-radius:50%;
+    background:radial-gradient(circle,rgba(255,255,255,.95),rgba(255,255,255,0) 70%);pointer-events:none;z-index:8;animation:hitflashA .26s ease forwards}
+  @keyframes hitflashA{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}25%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.25)}}
+  .burst{position:absolute;left:50%;top:26%;width:20px;height:20px;transform:translate(-50%,-50%);border-radius:50%;
+    border:3px solid #fff;pointer-events:none;z-index:7;animation:burstA .42s ease-out forwards}
+  @keyframes burstA{0%{opacity:.95;transform:translate(-50%,-50%) scale(.3)}100%{opacity:0;transform:translate(-50%,-50%) scale(3.2)}}
+  .shock{position:absolute;left:50%;top:26%;width:30px;height:30px;transform:translate(-50%,-50%);border-radius:50%;
+    border:3px solid var(--gold);pointer-events:none;z-index:6;animation:shockA .6s ease-out forwards}
+  @keyframes shockA{0%{opacity:1;transform:translate(-50%,-50%) scale(.4)}100%{opacity:0;transform:translate(-50%,-50%) scale(4.5)}}
+  .arena .tint{position:absolute;inset:0;pointer-events:none;z-index:4;opacity:0;border-radius:18px}
+  .arena .tint.go{animation:tintA .42s ease}
+  @keyframes tintA{0%{opacity:0}30%{opacity:.42}100%{opacity:0}}
+  .sides{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:start}
+  .side h4{font-size:13px;letter-spacing:.1em;color:#8e96b5;margin-bottom:12px;text-align:center}
+  .vs{font-family:var(--serif);font-size:22px;color:var(--gold);align-self:center;text-align:center;opacity:.7}
+  .units{display:flex;flex-direction:column;gap:16px;align-items:center;min-height:120px;justify-content:center}
+  .unit{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;width:110px;will-change:transform}
+  .unit .fig{font-size:46px;line-height:1;filter:drop-shadow(0 6px 5px rgba(0,0,0,.45));
+    animation:bob 2.6s ease-in-out infinite;position:relative}
+  .units.foe .unit .fig{transform:scaleX(-1)}
+  .unit.dead{opacity:.25}
+  .unit.dead .fig{animation:none;transform:rotate(72deg) translateY(5px);filter:grayscale(1)}
+  .units.foe .unit.dead .fig{transform:scaleX(-1) rotate(72deg) translateY(5px)}
+  .unit.act .fig{filter:drop-shadow(0 0 11px rgba(201,169,110,.85))}
+  .unit.cast .fig{animation:cast .6s ease}
+  .unit.atkR{animation:lungeR .44s ease}
+  .unit.atkL{animation:lungeL .44s ease}
+  .unit.hurt .fig{animation:hurtj .34s}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+  @keyframes lungeR{0%{transform:translateX(0)}45%{transform:translateX(48px)}100%{transform:translateX(0)}}
+  @keyframes lungeL{0%{transform:translateX(0)}45%{transform:translateX(-48px)}100%{transform:translateX(0)}}
+  @keyframes cast{0%,100%{transform:scale(1)}40%{transform:scale(1.3)}}
+  @keyframes hurtj{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}60%{transform:translateX(5px)}}
+  .unit .uname{font-size:12px;font-weight:700;text-align:center;max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .badges{display:flex;gap:3px;flex-wrap:wrap;justify-content:center;min-height:15px}
+  .ubarwrap{height:8px;width:90px;background:#0b0f1d;border-radius:5px;overflow:hidden;position:relative;border:1px solid #232a44}
+  .ubar{height:100%;width:100%;background:linear-gradient(90deg,var(--green),#8fe0a8);transition:width .3s ease}
+  .ubar.low{background:linear-gradient(90deg,var(--red),#ff9aa2)}
+  .ubar.mid{background:linear-gradient(90deg,var(--gold-deep),var(--gold))}
+  .uhp{font-size:10.5px;color:#9aa1bd}
+  .impact{position:absolute;left:50%;top:16%;transform:translateX(-50%);font-size:44px;pointer-events:none;z-index:9;
+    filter:drop-shadow(0 0 6px rgba(255,255,255,.6));animation:impactA .5s ease forwards}
+  @keyframes impactA{0%{opacity:0;transform:translateX(-50%) scale(.4) rotate(-18deg)}30%{opacity:1;transform:translateX(-50%) scale(1.35) rotate(6deg)}100%{opacity:0;transform:translateX(-50%) scale(1.1)}}
+  .fx{position:absolute;left:50%;top:6%;transform:translateX(-50%);font-size:22px;pointer-events:none;z-index:7;animation:fxrise .85s ease forwards}
+  @keyframes fxrise{0%{opacity:0;transform:translateX(-50%) translateY(10px)}30%{opacity:1}100%{opacity:0;transform:translateX(-50%) translateY(-26px)}}
+  .aura{position:absolute;left:50%;top:28%;width:70px;height:70px;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;z-index:1;animation:auraA .7s ease forwards}
+  @keyframes auraA{0%{opacity:0;transform:translate(-50%,-50%) scale(.5)}40%{opacity:.9;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.3)}}
+  .badge{display:inline-flex;align-items:center;gap:3px;font-size:11px;background:rgba(94,200,224,.18);
+    color:var(--cyan);border:1px solid rgba(94,200,224,.4);border-radius:50px;padding:1px 8px;margin-left:6px}
+  .badge.buff{background:rgba(74,208,125,.16);color:var(--green);border-color:rgba(74,208,125,.4)}
+  .badge.debuff{background:rgba(255,95,109,.16);color:var(--red);border-color:rgba(255,95,109,.4)}
+  .pop{position:absolute;left:50%;top:6px;transform:translateX(-50%);font-weight:900;font-size:19px;
+    pointer-events:none;animation:pop 0.85s ease forwards;text-shadow:0 2px 6px rgba(0,0,0,.6);z-index:5}
+  @keyframes pop{0%{opacity:0;transform:translate(-50%,4px) scale(.7)}20%{opacity:1;transform:translate(-50%,-8px) scale(1.15)}100%{opacity:0;transform:translate(-50%,-34px) scale(1)}}
+  .pop.dmg{color:#ff8a93;font-size:23px;-webkit-text-stroke:.6px rgba(0,0,0,.5)}.pop.heal{color:#7ef0a6}.pop.crit{color:#ffd34d;font-size:32px;-webkit-text-stroke:.8px rgba(0,0,0,.5)}.pop.miss{color:#9aa1bd}
+
+  .skbanner{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%) scale(.8);
+    background:linear-gradient(135deg,var(--navy2),var(--navy3));border:1.5px solid var(--gold);
+    border-radius:14px;padding:14px 26px;font-family:var(--serif);font-weight:700;font-size:18px;color:#fff;
+    opacity:0;pointer-events:none;z-index:20;box-shadow:0 14px 40px rgba(0,0,0,.5);text-align:center;white-space:nowrap}
+  .skbanner.show{animation:skb 1.05s ease forwards}
+  .skbanner .si{color:var(--gold);font-size:22px;margin-right:6px}
+  .skbanner small{display:block;font-family:var(--sans);font-size:12.5px;color:#bcc3dd;font-weight:400;margin-top:3px}
+  @keyframes skb{0%{opacity:0;transform:translate(-50%,-50%) scale(.8)}15%{opacity:1;transform:translate(-50%,-50%) scale(1.05)}80%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-62%) scale(1)}}
+
+  .wavebar{text-align:center;margin:4px 0 16px;font-size:14px;color:var(--gold);font-weight:700;letter-spacing:.05em}
+  .log{margin-top:16px;background:#0b0f1d;border:1px solid var(--line);border-radius:12px;
+    height:140px;overflow-y:auto;padding:12px 14px;font-size:13px;line-height:1.85;color:#aeb4cc}
+  .log .ll{opacity:0;animation:fadein .3s forwards}
+  @keyframes fadein{to{opacity:1}}
+  .log .sk{color:var(--cyan)}.log .dm{color:#ff9aa2}.log .he{color:var(--green)}
+  .log .win{color:var(--gold);font-weight:700}.log .ko{color:#ff6d7a}
+
+  .result{text-align:center;padding:22px;margin-top:16px;border-radius:16px;display:none}
+  .result.show{display:block;animation:fadein .4s}
+  .result.win{background:rgba(201,169,110,.1);border:1px solid var(--gold)}
+  .result.lose{background:rgba(255,95,109,.08);border:1px solid rgba(255,95,109,.4)}
+  .result h3{font-family:var(--serif);font-size:26px;margin-bottom:6px}
+  .result.win h3{color:var(--gold)}.result.lose h3{color:var(--red)}
+  .result p{color:#9aa1bd;font-size:14.5px;margin-bottom:14px}
+
+  .footer-note{margin-top:30px;text-align:center;font-size:13px;color:#6a7290;line-height:1.8}
+  .footer-note b{color:var(--gold)}
+
+  /* leaderboard 公播排行榜 */
+  .ttl .n{flex:none}
+  .lb{list-style:none;margin-top:14px;display:flex;flex-direction:column;gap:7px;padding:0}
+  .lb li{display:flex;align-items:center;gap:12px;background:linear-gradient(160deg,var(--navy2),var(--navy3));
+    border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+  .lb li.me{border-color:var(--gold);box-shadow:0 0 0 2px rgba(201,169,110,.18)}
+  .lb .rk{font-family:var(--serif);font-weight:900;font-size:16px;color:#8e96b5;width:30px;text-align:center;flex:none}
+  .lb li:nth-child(1) .rk,.lb li:nth-child(2) .rk,.lb li:nth-child(3) .rk{color:var(--gold);font-size:19px}
+  .lb .who{font-weight:700;font-size:14.5px;flex:none;max-width:128px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lb .comp{display:flex;gap:1px;font-size:18px;flex:1;overflow:hidden;min-width:0}
+  .lb .wv{font-weight:700;color:#9aa1bd;font-size:13px;flex:none;white-space:nowrap}
+  .lb .wv b{font-size:18px;color:var(--cyan)}
+  .lb .lb-empty,.lb li.lb-empty{justify-content:center;color:#6a7290;font-size:13.5px}
+  .lb-submit{margin-top:15px;display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap}
+  .lb-submit input{background:#0b0f1d;border:1px solid var(--line);border-radius:50px;padding:9px 16px;color:#e8ecf7;
+    font-family:var(--sans);font-size:14px;width:170px;text-align:center}
+  .lb-submit input:focus{outline:none;border-color:var(--gold)}
+  .lb-done{margin-top:12px;color:var(--gold);font-size:13.5px}
+  #cf{position:fixed;inset:0;pointer-events:none;z-index:50}
+  @media(max-width:680px){.sides{grid-template-columns:1fr;gap:10px}.vs{display:none}.units.foe{align-items:stretch}.units.foe .unit{margin-left:0}}
+</style>
+</head>
+<body>
+<canvas id="cf"></canvas>
+<div class="wrap">
+  <header>
+    <div class="chip">芯覺村 · CORE VILLAGE</div>
+    <h1>村民<span class="g">出戰</span></h1>
+    <div class="sub">每個夥伴的「本行」＝一張自製英雄卡。組一隊，看你能衝幾波。</div>
+    <div class="note-top">這是一個<b>大家一起蓋的遊戲</b>。每張卡＝一個 <b>villagers/名字.json</b>（按「看檔案」可展開）。想加入？發一個 PR 放進你的村民，引擎會自動把你排上場。做法看 <b>CONTRIBUTING.md</b>。</div>
+  </header>
+
+  <!-- ROSTER -->
+  <div id="recruit" class="panel">
+    <div class="ttl"><span class="n">1</span>招募大廳<span class="meta" id="tc">隊伍 0 / 4</span></div>
+    <div class="sub" style="margin-bottom:4px">點村民加入隊伍（最多 4 人）。每個技能效果都不同，搭配看看。</div>
+    <div class="roster" id="roster"></div>
+    <div class="controls">
+      <button class="btn" id="startBtn" disabled>⚔️ 開始戰鬥</button>
+      <button class="btn ghost" id="autoBtn">🎲 隨機組隊</button>
+    </div>
+  </div>
+
+  <!-- LEADERBOARD（公播排行榜）-->
+  <div id="board" class="panel">
+    <div class="ttl"><span class="n">★</span>公播排行榜<span class="meta" id="lbMode">本機</span></div>
+    <div class="sub" style="margin-bottom:4px" id="lbSub">全班一起衝，看誰的卡組撐最多波。每場結束自動上榜（用你自選的代號）。</div>
+    <ol class="lb" id="lbBody"><li class="lb-empty">還沒有紀錄，當第一個衝榜的人。</li></ol>
+  </div>
+
+  <!-- BATTLE -->
+  <div id="battle" class="panel">
+    <div class="ttl"><span class="n">2</span>戰鬥<span class="meta" id="speedTag" style="cursor:pointer">⏩ 速度 x1</span></div>
+    <div class="wavebar" id="wavebar">第 1 波</div>
+    <div class="arena" id="arena">
+      <div class="tint" id="arenaTint"></div>
+      <div class="sides">
+        <div class="side"><h4>🏡 你的村民</h4><div class="units" id="allies"></div></div>
+        <div class="vs">VS</div>
+        <div class="side"><h4>🐛 Bug 怪</h4><div class="units foe" id="foes"></div></div>
+      </div>
+      <div class="skbanner" id="skb"></div>
+      <div class="result" id="result"></div>
+    </div>
+    <div class="log" id="log"></div>
+    <div class="controls">
+      <button class="btn ghost" id="backBtn">↩ 重組隊伍</button>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    芯覺村 · core-village　|　技能 ＝ 一句清楚的指令，系統自動執行<br>
+    這個遊戲由 <b>CPN 共學夥伴</b>一起共建。每多一個人發 PR，卡池就多一張卡，大家都能用。<br>
+    想放進你的村民？看 <b>CONTRIBUTING.md</b>。
+  </div>
+</div>
+
+<!-- 村民資料：build 時由 villagers/*.json 聚合產生（見 scripts/build-villagers.mjs）-->
+<script src="villagers.generated.js"></script>
+<script src="firebase-config.js"></script>
+<script src="leaderboard.js"></script>
+<script>
+/* ---------- 資料：每個村民 = 一個 villagers/*.json ---------- */
+const SKILLS = {
+  shield:     {name:"風險對沖", icon:"🛡️", desc:"全隊獲得護盾，吸收下一次傷害", kind:"util"},
+  freeze:     {name:"罰站",     icon:"❄️", desc:"凍結一個敵人，讓牠罰站 2 回合", kind:"util"},
+  assassinate:{name:"自動化連擊",icon:"🗡️", desc:"連續攻擊 3 次，高爆擊；爆擊疊『殺意』", kind:"atk"},
+  dodge:      {name:"分鏡預判", icon:"🎯", desc:"閃避敵人的下一次攻擊", kind:"util"},
+  heal:       {name:"散熱模組", icon:"💧", desc:"治療血量最低的隊友", kind:"util"},
+  summon:     {name:"檔期促銷", icon:"🎁", desc:"召喚一個援軍小幫手", kind:"util"},
+  corrode:    {name:"蝕刻",     icon:"☠️", desc:"攻擊並附加『中毒』與『易傷』，可疊層", kind:"atk"},
+  empower:    {name:"市場賦能", icon:"📈", desc:"全隊攻擊力與爆擊率提升", kind:"util"},
+  hypnosis:   {name:"全場催眠", icon:"🌀", desc:"凍結所有敵人 1 回合，並使其『易傷』", kind:"util"},
+  overclock:  {name:"超頻",     icon:"⚡", desc:"這次 2.3 倍爆發傷害，下回合過熱休息", kind:"atk"},
+  regen:      {name:"節能續航", icon:"➕", desc:"全隊獲得『再生』，3 回合內每回合回血", kind:"util"},
+  armorbreak: {name:"精密拆解", icon:"🔩", desc:"重擊一個敵人並疊 2 層『易傷』", kind:"atk"},
+};
+/* 村民資料由 build 產生（window.__VILLAGERS__，聚合自 villagers/*.json）。原本寫死的陣列已抽走。*/
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+const RAW_VILLAGERS = Array.isArray(window.__VILLAGERS__) ? window.__VILLAGERS__ : [];
+// 第二層 XSS 防線：貢獻者字串只會進 innerHTML，載入時先轉義（build 端已擋 < >，這裡再保一層）
+const VILLAGERS = RAW_VILLAGERS.map(v=>Object.assign({}, v, {
+  name: esc(v.name), job: esc(v.job), emoji: esc(v.emoji), cry: esc(v.cry)
+}));
+const TEAM_MAX = 4;
+
+/* ---------- 狀態 ---------- */
+let selected = new Set();
+let SPEED = 1;
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r=>setTimeout(r, ms/SPEED));
+
+/* ---------- 招募大廳 ---------- */
+function renderRoster(){
+  const box = $('#roster'); box.innerHTML='';
+  if(VILLAGERS.length===0){ box.innerHTML='<div style="grid-column:1/-1;text-align:center;color:#9aa1bd;padding:30px;line-height:1.9">尚未建置村民資料。請先執行 <code style="color:#C9A96E">npm run build</code>（node scripts/build-villagers.mjs）產生 villagers.generated.js。</div>'; updateCount(); return; }
+  VILLAGERS.forEach(v=>{
+    const sk = SKILLS[v.skill];
+    const el = document.createElement('div');
+    el.className='vcard'+(selected.has(v.id)?' sel':'');
+    el.innerHTML=`
+      <div class="vhead"><div class="vemo">${v.emoji}</div>
+        <div><div class="vname">${v.name}</div><div class="vjob">${v.job}</div></div></div>
+      <div class="vstats"><span>❤️ <b>${v.hp}</b></span><span>⚔️ <b>${v.atk}</b></span><span>👟 <b>${v.spd}</b></span></div>
+      <div class="vskill"><span class="sn">${sk.icon} ${sk.name}</span>　${sk.desc}</div>
+      <div class="vcry">「${v.cry}」</div>
+      <div class="vfile" data-id="${v.id}">&lt;/&gt; 看檔案 villagers/${v.id}.json</div>
+      <div class="vjson" id="json-${v.id}">${jsonView(v)}</div>`;
+    el.addEventListener('click',(e)=>{
+      if(e.target.classList.contains('vfile')){
+        $('#json-'+e.target.dataset.id).classList.toggle('show'); return;
+      }
+      toggle(v.id);
+    });
+    box.appendChild(el);
+  });
+  updateCount();
+}
+function jsonView(v){
+  const critLine = v.crit!=null ? `\n  "crit": ${v.crit},` : '';
+  return `{
+  "id": "${v.id}",
+  "name": "${v.name}",
+  "job": "${v.job}",
+  "emoji": "${v.emoji}",
+  "hp": ${v.hp}, "atk": ${v.atk}, "spd": ${v.spd},
+  "skill": "${v.skill}",${critLine}
+  "cry": "${v.cry}"
+}`;
+}
+function toggle(id){
+  if(selected.has(id)) selected.delete(id);
+  else { if(selected.size>=TEAM_MAX) return; selected.add(id); }
+  renderRoster();
+}
+function updateCount(){
+  $('#tc').textContent=`隊伍 ${selected.size} / ${TEAM_MAX}`;
+  $('#startBtn').disabled = selected.size===0;
+}
+$('#autoBtn').addEventListener('click',()=>{
+  selected = new Set([...VILLAGERS].sort(()=>Math.random()-0.5).slice(0,TEAM_MAX).map(v=>v.id));
+  renderRoster();
+});
+
+/* ---------- 建立戰鬥單位 ---------- */
+function mkAlly(v){
+  return {...v, side:'ally', maxHp:v.hp, hp:v.hp, baseAtk:v.atk, atk:v.atk,
+    crit:(typeof v.crit==='number'?v.crit:0.08), critDmg:1.9, bloodlust:0,
+    poison:0, poisonT:0, frozen:0, vuln:0, vulnT:0, regen:0, regenT:0,
+    cdLeft:0, cd:3, shield:0, dodge:false, overheat:false, rally:0, alive:true};
+}
+/* 無盡衝波：敵人隨波數變強，每 5 波一個魔王 */
+const FOE_POOL = [
+  {name:"小 Bug",     emoji:"🐛",hp:50,atk:11,spd:7},
+  {name:"語法錯誤",   emoji:"❌",hp:62,atk:13,spd:6},
+  {name:"病毒",       emoji:"🦠",hp:78,atk:16,spd:8},
+  {name:"記憶體洩漏", emoji:"💧",hp:92,atk:14,spd:5},
+];
+function scale(base,n){ return {...base, hp:Math.round(base.hp*(1+0.16*(n-1))), atk:Math.round(base.atk*(1+0.10*(n-1))) }; }
+function genWave(n){
+  let raw=[];
+  if(n%5===0){
+    raw.push({name:"大魔王 BUG",emoji:"👾",hp:Math.round(240*(1+0.14*n)),atk:Math.round(20*(1+0.10*n)),spd:9});
+    const adds=Math.min(2,Math.floor(n/10)+1);
+    for(let i=0;i<adds;i++) raw.push(scale(FOE_POOL[2],n));
+  } else {
+    const count=Math.min(5, 2+Math.floor(n/2.5));
+    for(let i=0;i<count;i++) raw.push(scale(FOE_POOL[Math.floor(Math.random()*FOE_POOL.length)],n));
+  }
+  return raw.map(mkFoe);
+}
+function bestWave(){ return parseInt(localStorage.getItem('xinjue-village-best')||'0',10)||0; }
+function setBest(w){ if(w>bestWave()) localStorage.setItem('xinjue-village-best',String(w)); }
+function mkFoe(f){ return {...f, side:'foe', maxHp:f.hp, hp:f.hp, atk:f.atk, baseAtk:f.atk,
+  crit:0.05, critDmg:1.6, bloodlust:0, poison:0, poisonT:0, frozen:0, vuln:0, vulnT:0, regen:0, regenT:0,
+  shield:0, dodge:false, alive:true, weaken:1}; }
+
+let allies=[], foes=[], curWave=0, busy=false;
+
+/* ---------- 渲染戰場：建一次、就地更新（動畫才不會被洗掉）---------- */
+let uidc=0;
+function tagUids(arr){ arr.forEach(u=>u.uid=++uidc); }
+/* ---- 粗像素 sprite（NES 級：小網格 + 調色盤替換）---- */
+const SPRITES={
+  hero:[ "...OOOOOO...","..OHHHHHHO..","..OHSSSSHO..","..OSSSSSSO..","..OSWSSWSO..","..OSSSSSSO..","...OBBBBO...","..OBBBBBBO..","..ObBBBBbO..","..OBBBBBBO..","..OBBBBBBO..","...OBBBBO...","...OF..FO...","...FF..FF..." ],
+  bug:[ "....OOOO....","..OOggggOO..",".OggggggggO.",".OggWggWggO.",".OggkggkggO.",".OggggggggO.","..OggggggO..",".O.OggggO.O.","O...O..O...O" ],
+  chick:[ "...OOOO...","..OyyyyO..",".OyyyyyyO.",".OykyykyO.",".OyyrryyO.",".OyyyyyyO.","..OyyyyO..","...r..r..." ],
+};
+const BASEPAL={'.':null,'O':'#181226','H':'#5a3a2a','S':'#f3cda0','W':'#ffffff','F':'#39394d','k':'#101820',
+  'B':'#C9A96E','b':'#a6843a','g':'#62c06e','d':'#3c8a49','y':'#f5d44a','r':'#f0922e'};
+function darken(hex,f){ const n=parseInt(hex.slice(1),16); const r=Math.round(((n>>16)&255)*f),g=Math.round(((n>>8)&255)*f),b=Math.round((n&255)*f); return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1); }
+const SKILLCOL={shield:'#5e8fc8',freeze:'#79b6e0',assassinate:'#6f8fb5',dodge:'#e89ac0',heal:'#6abf8a',summon:'#e0a060',corrode:'#8bbf5a',empower:'#C9A96E',hypnosis:'#9b6dd6',overclock:'#e0704f',regen:'#5ec8a0',armorbreak:'#8a8f9e'};
+function unitSprite(u){
+  if(u.side==='foe'){
+    const c=u.emoji==='🦠'?'#8ad08a':u.emoji==='💧'?'#5ec8e0':u.emoji==='👾'?'#c98ad0':u.emoji==='❌'?'#ff6d7a':'#9ed06a';
+    return {name:'bug', ov:{g:c, d:darken(c,0.6)}};
+  }
+  if(u.id==='helper') return {name:'chick', ov:{}};
+  const c=SKILLCOL[u.skill]||'#C9A96E';
+  return {name:'hero', ov:{B:c, b:darken(c,0.62)}};
+}
+function spriteEl(name,px,ov){
+  const rows=SPRITES[name]; if(!rows)return null;
+  const pal=Object.assign({},BASEPAL,ov||{});
+  const w=rows[0].length,h=rows.length;
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  c.style.width=px+'px'; c.style.height=Math.round(px*h/w)+'px';
+  c.style.imageRendering='pixelated'; c.style.display='block';
+  const x=c.getContext('2d');
+  rows.forEach((r,yy)=>{ for(let xx=0;xx<r.length;xx++){ const col=pal[r[xx]]; if(col){ x.fillStyle=col; x.fillRect(xx,yy,1,1);} } });
+  return c;
+}
+function mkUnitEl(u){
+  const d=document.createElement('div'); d.className='unit'; d.id='u-'+u.uid;
+  d.innerHTML=`<div class="fig"></div><div class="uname">${u.name}</div>`
+    +`<div class="badges"></div><div class="ubarwrap"><div class="ubar"></div></div><div class="uhp"></div>`;
+  const fig=d.querySelector('.fig');
+  const sp=unitSprite(u); const px=(u.emoji==='👾')?74:(u.id==='helper'?38:52);
+  const cv=sp&&spriteEl(sp.name,px,sp.ov);
+  if(cv){fig.appendChild(cv);} else {fig.textContent=u.emoji;}
+  u.el=d; return d;
+}
+function buildStage(){
+  const a=$('#allies'), f=$('#foes'); a.innerHTML=''; f.innerHTML='';
+  allies.forEach(u=>a.appendChild(mkUnitEl(u)));
+  foes.forEach(u=>f.appendChild(mkUnitEl(u)));
+  paintAll();
+}
+function paint(u){
+  if(!u.el) return;
+  const pct=Math.max(0,u.hp)/u.maxHp*100;
+  const bar=u.el.querySelector('.ubar');
+  bar.style.width=pct+'%';
+  bar.className='ubar '+(pct<30?'low':(pct<60?'mid':''));
+  u.el.querySelector('.uhp').textContent=`${Math.max(0,Math.round(u.hp))}/${u.maxHp}`;
+  u.el.classList.toggle('dead',!u.alive);
+  let b='';
+  if(u.shield>0) b+=`<span class="badge">🛡️${u.shield}</span>`;
+  if(u.bloodlust>0) b+=`<span class="badge buff">🗡️${u.bloodlust}</span>`;
+  if(u.rally>0) b+=`<span class="badge buff">📈</span>`;
+  if(u.regen>0) b+=`<span class="badge buff">➕${u.regenT}</span>`;
+  if(u.dodge) b+=`<span class="badge">🎯</span>`;
+  if(u.poison>0) b+=`<span class="badge debuff">☠️${u.poison}</span>`;
+  if(u.vuln>0) b+=`<span class="badge debuff">💢${u.vuln}</span>`;
+  if(u.frozen>0) b+=`<span class="badge debuff">❄️${u.frozen}</span>`;
+  if(u.overheat) b+=`<span class="badge debuff">🥵</span>`;
+  u.el.querySelector('.badges').innerHTML=b;
+}
+function paintAll(){ allies.forEach(paint); foes.forEach(paint); }
+
+function pop(u,text,cls){ if(!u.el)return; const p=document.createElement('div'); p.className='pop '+cls; p.textContent=text; u.el.appendChild(p); setTimeout(()=>p.remove(),850); }
+function hurtFx(u){ if(u.el){u.el.classList.add('hurt'); setTimeout(()=>{u.el&&u.el.classList.remove('hurt');},340);} }
+function actFx(u){ if(u.el){u.el.classList.add('act'); setTimeout(()=>{u.el&&u.el.classList.remove('act');},440);} }
+function lungeFx(u){ if(u.el){const c=u.side==='ally'?'atkR':'atkL'; u.el.classList.add(c); setTimeout(()=>{u.el&&u.el.classList.remove(c);},440);} }
+function castFx(u){ if(u.el){u.el.classList.add('cast'); setTimeout(()=>{u.el&&u.el.classList.remove('cast');},620);} }
+function impactFx(t,icon){ if(!t.el)return; const i=document.createElement('div'); i.className='impact'; i.textContent=icon||'💥'; t.el.appendChild(i); setTimeout(()=>i.remove(),520); }
+function fxOn(u,icon){ if(!u.el)return; const f=document.createElement('div'); f.className='fx'; f.textContent=icon; u.el.appendChild(f); setTimeout(()=>f.remove(),840); }
+function auraOn(u,color){ if(!u.el)return; const x=document.createElement('div'); x.className='aura'; x.style.background=`radial-gradient(circle,${color},transparent 70%)`; u.el.appendChild(x); setTimeout(()=>x.remove(),720); }
+function shake(big){ const a=$('#arena'); const c=big?'shakeBig':'shake'; a.classList.add(c); setTimeout(()=>a.classList.remove(c),360); }
+function flashTarget(u){ if(!u.el)return;
+  const f=document.createElement('div'); f.className='hitflash'; u.el.appendChild(f); setTimeout(()=>f.remove(),280);
+  const b=document.createElement('div'); b.className='burst'; u.el.appendChild(b); setTimeout(()=>b.remove(),440); }
+function shockAt(u,color){ if(!u.el)return; const s=document.createElement('div'); s.className='shock'; if(color)s.style.borderColor=color; u.el.appendChild(s); setTimeout(()=>s.remove(),620); }
+function tintFlash(color){ const t=$('#arenaTint'); if(!t)return; t.style.background=color||'rgba(201,169,110,.5)'; t.classList.remove('go'); void t.offsetWidth; t.classList.add('go'); }
+function log(html,cls=''){ const l=$('#log'); const d=document.createElement('div'); d.className='ll '+cls; d.innerHTML=html; l.appendChild(d); l.scrollTop=l.scrollHeight; }
+async function banner(icon,title,sub){ const b=$('#skb'); b.innerHTML=`<span class="si">${icon}</span>${title}<small>${sub||''}</small>`;
+  b.classList.remove('show'); void b.offsetWidth; b.classList.add('show'); await sleep(700); }
+
+/* ---------- 戰鬥邏輯 ---------- */
+function alive(arr){ return arr.filter(u=>u.alive); }
+function lowestHp(arr){ return alive(arr).sort((a,b)=>a.hp-b.hp)[0]; }
+function rand(arr){ const a=alive(arr); return a[Math.floor(Math.random()*a.length)]; }
+
+async function dealDamage(target, amount, opt={}){
+  if(!target||!target.alive) return;
+  if(target.dodge){ target.dodge=false; pop(target,'閃避','miss'); fxOn(target,'🎯'); log(`　${target.emoji} ${target.name} <span class="sk">閃避</span>了攻擊`); paintAll(); return; }
+  let dmg=Math.round(amount * (target.vuln>0?(1+0.15*target.vuln):1));
+  if(target.shield>0){
+    const absorbed=Math.min(target.shield,dmg); target.shield-=absorbed; dmg-=absorbed;
+    pop(target,'🛡️-'+absorbed,'miss');
+  }
+  if(dmg>0){
+    target.hp-=dmg; hurtFx(target); impactFx(target, opt.crit?'⚡':'💥'); flashTarget(target);
+    pop(target,'-'+dmg, opt.crit?'crit':'dmg');
+    shake(opt.crit||opt.big);
+    await sleep(opt.crit?95:55);   // 打擊頓挫 hitstop
+  }
+  if(target.hp<=0){ target.hp=0; target.alive=false; log(`　💀 ${target.emoji} ${target.name} 倒下`,'ko'); }
+  paintAll();
+}
+
+async function basicAttack(u, foesArr, mult=1){
+  const t=lowestHp(foesArr); if(!t) return;
+  const critChance=Math.min(0.95,(u.crit||0)+(u.bloodlust||0)*0.06);
+  const crit=Math.random()<critChance;
+  const base=u.atk*(u.rally>0?1.25:1)*(0.9+Math.random()*0.25)*mult;
+  log(`${u.emoji} <b>${u.name}</b> 攻擊 ${t.emoji} ${t.name}${crit?'（爆擊！）':''}`,'dm');
+  lungeFx(u); await sleep(175);
+  await dealDamage(t, base*(crit?(u.critDmg||1.8):1), {crit, big:mult>1});
+  if(crit && u.skill==='assassinate'){ u.bloodlust=(u.bloodlust||0)+1; fxOn(u,'🗡️'); }
+  await sleep(105);
+}
+
+async function useSkill(u, ownSide, foeSide){
+  const sk=SKILLS[u.skill];
+  actFx(u); castFx(u); shockAt(u); tintFlash('rgba(201,169,110,.4)');
+  await banner(sk.icon, `${u.name}　${sk.name}！`, sk.desc);
+  log(`✦ ${u.emoji} <b>${u.name}</b> 發動 <span class="sk">${sk.icon} ${sk.name}</span>`,'sk');
+  switch(u.skill){
+    case 'shield': alive(ownSide).forEach(a=>{a.shield+=26; auraOn(a,'rgba(94,200,224,.55)'); fxOn(a,'🛡️');}); break;
+    case 'freeze': { const fs=alive(foeSide); const tgt=fs.sort((a,b)=>b.atk-a.atk)[0]; if(tgt){tgt.frozen=2; tgt.atk=Math.round(tgt.baseAtk*0.85); auraOn(tgt,'rgba(120,180,255,.6)'); fxOn(tgt,'❄️'); pop(tgt,'❄️凍結','miss'); log(`　❄️ ${tgt.emoji} ${tgt.name} 被罰站 2 回合`,'sk');} break; }
+    case 'heal':   { const t=lowestHp(ownSide); if(t){const h=Math.round(t.maxHp*0.32); t.hp=Math.min(t.maxHp,t.hp+h); auraOn(t,'rgba(74,208,125,.5)'); fxOn(t,'➕'); pop(t,'+'+h,'heal'); log(`　💧 治療 ${t.emoji} ${t.name} +${h}`,'he');} break; }
+    case 'empower': alive(ownSide).forEach(a=>{a.rally=2; a.crit=Math.min(0.9,(a.crit||0)+0.22); auraOn(a,'rgba(201,169,110,.5)'); fxOn(a,'📈');}); log(`　📈 全隊 攻擊↑ 爆擊↑`,'sk'); break;
+    case 'dodge':  u.dodge=true; auraOn(u,'rgba(201,169,110,.55)'); fxOn(u,'🎯'); break;
+    case 'summon': { const helper=mkFoeAlly(); allies.push(helper); tagUids([helper]); buildStage(); fxOn(u,'🎁'); log(`　🎁 召喚援軍 ${helper.emoji} ${helper.name}`,'he'); break; }
+    case 'assassinate': for(let i=0;i<3;i++){ if(alive(foeSide).length===0)break; await basicAttack(u,foeSide,0.8); await sleep(120);} break;
+    case 'corrode': { const t=lowestHp(foeSide); await basicAttack(u,foeSide,1); if(t&&t.alive){ t.poison=(t.poison||0)+2; t.poisonT=3; t.vuln=(t.vuln||0)+1; t.vulnT=3; auraOn(t,'rgba(150,220,120,.55)'); fxOn(t,'☠️'); log(`　☠️ ${t.emoji} ${t.name} 中毒×${t.poison} 易傷×${t.vuln}`,'sk'); } break; }
+    case 'hypnosis': alive(foeSide).forEach(f=>{ f.frozen=Math.max(f.frozen,1); f.vuln=(f.vuln||0)+1; f.vulnT=3; auraOn(f,'rgba(155,109,214,.6)'); fxOn(f,'🌀'); }); log(`　🌀 全場催眠！敵人罰站＋易傷`,'sk'); break;
+    case 'overclock': await basicAttack(u,foeSide,2.3); u.overheat=true; break;
+    case 'regen': alive(ownSide).forEach(a=>{ a.regen=Math.round(a.maxHp*0.08); a.regenT=3; auraOn(a,'rgba(94,200,160,.5)'); fxOn(a,'➕'); }); log(`　➕ 全隊再生（3 回合）`,'sk'); break;
+    case 'armorbreak': { const t=lowestHp(foeSide); await basicAttack(u,foeSide,1.4); if(t&&t.alive){ t.vuln=(t.vuln||0)+2; t.vulnT=3; auraOn(t,'rgba(138,143,158,.6)'); fxOn(t,'🔩'); log(`　🔩 ${t.emoji} ${t.name} 易傷×${t.vuln}`,'sk'); } break; }
+  }
+  paintAll();
+}
+function mkFoeAlly(){
+  return {id:'helper',name:'促銷小幫手',job:'',emoji:'🐣',side:'ally',maxHp:45,hp:45,baseAtk:14,atk:14,spd:11,
+    skill:null,cdLeft:99,cd:99,shield:0,dodge:false,overheat:false,rally:0,alive:true,cry:''};
+}
+
+// 回合開始結算狀態：中毒掉血、易傷衰減、凍結跳過。回傳 true = 這回合不行動
+async function tickStatus(u){
+  if(u.alive && u.regen>0 && u.regenT>0){ const h=u.regen; u.hp=Math.min(u.maxHp,u.hp+h); u.regenT--; if(u.regenT<=0)u.regen=0; fxOn(u,'➕'); pop(u,'+'+h,'heal'); paintAll(); await sleep(140); }
+  if(u.poison>0 && u.poisonT>0){
+    const dmg=u.poison*7;
+    u.hp-=dmg; u.poisonT--; if(u.poisonT<=0)u.poison=0;
+    hurtFx(u); fxOn(u,'☠️'); pop(u,'-'+dmg,'dmg');
+    log(`　☠️ ${u.emoji} ${u.name} 中毒掉 ${dmg}`,'dm');
+    if(u.hp<=0){ u.hp=0; u.alive=false; log(`　💀 ${u.emoji} ${u.name} 毒發身亡`,'ko'); }
+    paintAll(); await sleep(220);
+  }
+  if(u.vuln>0 && u.vulnT>0){ u.vulnT--; if(u.vulnT<=0)u.vuln=0; }
+  if(u.alive && u.frozen>0){ u.frozen--; fxOn(u,'❄️'); pop(u,'凍結','miss'); log(`　❄️ ${u.emoji} ${u.name} 被凍住，跳過回合`); paintAll(); await sleep(300); return true; }
+  return false;
+}
+async function takeTurn(u, ownSide, foeSide){
+  if(!u.alive) return;
+  if(await tickStatus(u)) return;
+  if(!u.alive) return;
+  if(alive(foeSide).length===0) return;
+  if(u.overheat){ u.overheat=false; pop(u,'過熱','miss'); log(`　🥵 ${u.emoji} ${u.name} 過熱，這回合休息`); paintAll(); await sleep(420); return; }
+  actFx(u);
+  if(u.skill && u.cdLeft<=0){ u.cdLeft=u.cd; await useSkill(u, ownSide, foeSide); }
+  else { if(u.cdLeft>0)u.cdLeft--; await basicAttack(u, foeSide, 1); }
+  // decay rally
+  if(u.rally>0 && u.side==='ally'){ /* decremented per round below */ }
+  await sleep(430);
+}
+
+async function enemyTurn(u){
+  if(!u.alive) return;
+  if(await tickStatus(u)) return;
+  if(!u.alive||alive(allies).length===0) return;
+  actFx(u);
+  const t=rand(allies);
+  log(`${u.emoji} ${u.name} 攻擊 ${t.emoji} ${t.name}`,'dm');
+  lungeFx(u); await sleep(165);
+  await dealDamage(t, u.atk*(0.9+Math.random()*0.25));
+  await sleep(330);
+}
+
+let roundN=0;
+async function runBattle(){
+  busy=true; $('#result').className='result';
+  while(alive(allies).length>0){
+    curWave++;
+    foes = genWave(curWave); tagUids(foes);
+    $('#wavebar').textContent=`第 ${curWave} 波`+(curWave%5===0?'　👾 魔王！':'')+`　·　你的最高紀錄 ${bestWave()} 波`;
+    buildStage(); log(`<span class="win">— 第 ${curWave} 波 —</span>`); await sleep(550);
+    while(alive(foes).length>0 && alive(allies).length>0){
+      roundN++;
+      // turn order by spd, all alive units
+      const order=[...alive(allies),...alive(foes)].sort((a,b)=>b.spd-a.spd);
+      for(const u of order){
+        if(!u.alive) continue;
+        if(alive(foes).length===0||alive(allies).length===0) break;
+        if(u.side==='ally') await takeTurn(u, allies, foes);
+        else await enemyTurn(u);
+      }
+      // end of round upkeep: rally decay
+      alive(allies).forEach(a=>{ if(a.rally>0){a.rally--; if(a.rally===0)pop(a,'攻↑結束','miss');} });
+      paintAll();
+    }
+    if(alive(allies).length===0){ return endBattle(curWave-1); }
+    log(`<span class="win">✦ 第 ${curWave} 波清空！</span>`);
+    // 波間：小回血、清護盾/過熱，撐得久一點
+    alive(allies).forEach(a=>{ const h=Math.round(a.maxHp*0.12); a.hp=Math.min(a.maxHp,a.hp+h); a.shield=0; a.overheat=false; if(h>0){auraOn(a,'rgba(74,208,125,.4)'); pop(a,'+'+h,'heal');} });
+    paintAll(); await sleep(650);
+  }
+  endBattle(curWave-1);
+}
+function endBattle(reached){
+  busy=false;
+  const prev=bestWave(); const isRec=reached>prev && reached>0; setBest(reached);
+  const win = reached>=5;
+  const r=$('#result'); r.className='result show '+(win?'win':'lose');
+  const title = reached<=0 ? '🛡️ 第 1 波就被攻破…' : `${reached>=10?'🏆':(win?'🎉':'🛡️')} 衝到第 ${reached} 波！`;
+  const sub = isRec ? '🔥 刷新你的最高紀錄！換個卡組還能更遠。' : `你的最高紀錄：${bestWave()} 波　·　換隊組合再衝更遠。`;
+  r.innerHTML = `<h3>${title}</h3><p>${sub}</p><div id="lbResult"></div><button class="btn" id="againBtn">↻ 再衝一次</button>`;
+  $('#againBtn').addEventListener('click', resetAndStart);
+  if(reached>0) submitScore(reached);
+  if(reached>=5) confetti();
+}
+
+function resetAndStart(){
+  if(busy) return;            // 防止重入造成兩個並行戰鬥迴圈
+  curWave=0; roundN=0; uidc=0; foes=[];
+  allies = [...selected].map(id=>mkAlly(VILLAGERS.find(v=>v.id===id)));
+  tagUids(allies);
+  $('#log').innerHTML=''; $('#result').className='result';
+  buildStage(); runBattle();
+}
+
+/* ---------- 切換畫面 ---------- */
+$('#startBtn').addEventListener('click',()=>{
+  $('#recruit').style.display='none';
+  $('#battle').classList.add('on');
+  resetAndStart();
+});
+$('#backBtn').addEventListener('click',()=>{
+  if(busy) return;
+  $('#battle').classList.remove('on');
+  $('#recruit').style.display='block';
+});
+$('#speedTag').addEventListener('click',()=>{
+  SPEED = SPEED===1?2:(SPEED===2?4:1);
+  $('#speedTag').textContent=`⏩ 速度 x${SPEED}`;
+});
+
+/* ---------- confetti ---------- */
+const cf=$('#cf'),cx=cf.getContext('2d');let cps=[],craf;
+const CCOL=['#C9A96E','#D4B87A','#7aab8e','#fff','#a68239'];
+function confetti(){
+  cf.width=innerWidth;cf.height=innerHeight;cps=[];
+  for(let i=0;i<120;i++)cps.push({x:Math.random()*cf.width,y:-20-Math.random()*cf.height*.4,
+    w:6+Math.random()*7,h:9+Math.random()*9,vy:2+Math.random()*3.4,vx:-1.5+Math.random()*3,
+    rot:Math.random()*6.28,vr:-0.16+Math.random()*0.32,col:CCOL[Math.floor(Math.random()*CCOL.length)]});
+  cancelAnimationFrame(craf);canim();
+}
+function canim(){cx.clearRect(0,0,cf.width,cf.height);let a=false;
+  cps.forEach(p=>{p.y+=p.vy;p.x+=p.vx;p.rot+=p.vr;p.vy+=0.02;if(p.y<cf.height+30)a=true;
+    cx.save();cx.translate(p.x,p.y);cx.rotate(p.rot);cx.fillStyle=p.col;cx.fillRect(-p.w/2,-p.h/2,p.w,p.h);cx.restore();});
+  if(a)craf=requestAnimationFrame(canim);else cx.clearRect(0,0,cf.width,cf.height);}
+
+/* ---------- 公播排行榜：渲染 + 送分 ---------- */
+function teamOf(){
+  const vs=[...selected].map(id=>VILLAGERS.find(v=>v.id===id)).filter(Boolean);
+  return { team: vs.map(v=>v.id), teamEmojis: vs.map(v=>v.emoji) };
+}
+async function submitScore(reached){
+  const box=$('#lbResult'); if(!box||!window.Leaderboard) return;
+  const t=teamOf();
+  const done=h=>`<div class="lb-done">✓ 已上榜：<b>${esc(h)}</b> · 第 ${reached} 波</div>`;
+  const send=async h=>{ box.innerHTML='<div class="lb-done">⏳ 上榜中…</div>';
+    await Leaderboard.submit({wave:reached, team:t.team, teamEmojis:t.teamEmojis}); box.innerHTML=done(h); };
+  const handle=Leaderboard.getHandle();
+  if(handle){ await send(handle); return; }
+  box.innerHTML=`<div class="lb-submit">
+      <input id="lbHandle" maxlength="16" placeholder="輸入你的代號（公開顯示）" autocomplete="off">
+      <button class="btn" id="lbGo">上榜</button></div>`;
+  const go=async()=>{ const h=Leaderboard.setHandle($('#lbHandle').value);
+    if(!h){ $('#lbHandle').focus(); return; } await send(h); };
+  $('#lbGo').addEventListener('click', go);
+  $('#lbHandle').addEventListener('keydown', e=>{ if(e.key==='Enter') go(); });
+  $('#lbHandle').focus();
+}
+function renderLeaderboard(entries){
+  const body=$('#lbBody'); if(!body) return;
+  const modeEl=$('#lbMode'); if(modeEl&&window.Leaderboard) modeEl.textContent = Leaderboard.mode==='live'?'即時公播':'本機';
+  if(!entries||entries.length===0){ body.innerHTML='<li class="lb-empty">還沒有紀錄，當第一個衝榜的人。</li>'; return; }
+  const me=window.Leaderboard?Leaderboard.getHandle():'';
+  body.innerHTML=entries.map((e,i)=>{
+    const comp=(e.teamEmojis||[]).map(x=>`<span>${esc(x)}</span>`).join('');
+    const mine = me && e.handle===me ? ' me':'';
+    return `<li class="${mine.trim()}"><span class="rk">${i+1}</span>`
+      +`<span class="who">${esc(e.handle||'匿名村民')}</span>`
+      +`<span class="comp">${comp}</span>`
+      +`<span class="wv">第 <b>${e.wave|0}</b> 波</span></li>`;
+  }).join('');
+}
+if(window.Leaderboard) Leaderboard.subscribe(renderLeaderboard);
+
+renderRoster();
+</script>
+</body>
+</html>
