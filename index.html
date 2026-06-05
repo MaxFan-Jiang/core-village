@@ -502,7 +502,7 @@ function mkAlly(v){
   return {...v, side:'ally', maxHp:v.hp, hp:v.hp, baseAtk:v.atk, atk:v.atk,
     crit:(typeof v.crit==='number'?v.crit:0.08), critDmg:1.9, bloodlust:0,
     poison:0, poisonT:0, frozen:0, vuln:0, vulnT:0, regen:0, regenT:0,
-    cdLeft:0, cd:3, shield:0, dodge:false, overheat:false, rally:0, taunt:0, alive:true};
+    cdLeft:0, cd:3, shield:0, dodgeP:0, dodgeT:0, overheat:false, rally:0, taunt:0, alive:true};
 }
 /* 無盡衝波：敵人隨波數變強，每 5 波一個魔王 */
 const FOE_POOL = [
@@ -528,12 +528,12 @@ function bestWave(){ return parseInt(localStorage.getItem('xinjue-village-best')
 function setBest(w){ if(w>bestWave()) localStorage.setItem('xinjue-village-best',String(w)); }
 function mkFoe(f){ return {...f, side:'foe', maxHp:f.hp, hp:f.hp, atk:f.atk, baseAtk:f.atk,
   crit:0.05, critDmg:1.6, bloodlust:0, poison:0, poisonT:0, frozen:0, vuln:0, vulnT:0, regen:0, regenT:0,
-  shield:0, dodge:false, alive:true}; }
+  shield:0, dodgeP:0, dodgeT:0, alive:true}; }
 
 let allies=[], foes=[], curWave=0, busy=false;
 /* roguelite 強化：打完魔王 3 選 1，效果累積整場 */
 let perks={}, runBoons=[]; const takenBoons=new Set();
-function resetPerks(){ perks={lifesteal:0,critChain:false,teamCrit:0,critDmg:0,atkMul:1,killHeal:0,poisonMul:0,vulnBonus:0,firstStrikeCrit:false,waveHeal:0,berserk:false,critRamp:false}; }
+function resetPerks(){ perks={lifesteal:0,critChain:false,teamCrit:0,critDmg:0,atkMul:1,killHeal:0,poisonMul:0,vulnBonus:0,firstStrikeCrit:false,waveHeal:0,berserk:false,critRamp:false,weaken:false,dmgReduce:0}; }
 resetPerks();
 // 浴血：敵人倒下時全隊回血（隨擊殺放大，餵血甲消耗流）
 function killHeal(){ if(perks.killHeal<=0) return; const list=alive(allies); list.forEach(a=>{ a.hp=Math.min(a.maxHp,a.hp+Math.round(a.maxHp*perks.killHeal)); }); if(list[0]) pop(list[0],'🧛','heal'); }
@@ -601,10 +601,10 @@ function paint(u){
   if(u.bloodlust>0) b+=`<span class="badge buff">🗡️${u.bloodlust}</span>`;
   if(u.rally>0) b+=`<span class="badge buff">📈</span>`;
   if(u.regen>0) b+=`<span class="badge buff">➕${u.regenT}</span>`;
-  if(u.dodge) b+=`<span class="badge">🎯</span>`;
+  if(u.dodgeP>0) b+=`<span class="badge">🎯${u.dodgeT}</span>`;
   if(u.poison>0) b+=`<span class="badge debuff">☠️${u.poison}</span>`;
   if(u.vuln>0) b+=`<span class="badge debuff">💢${u.vuln}</span>`;
-  if(u.vuln>0 && u.poison>0) b+=`<span class="badge debuff">😵</span>`;
+  if(perks.weaken && u.vuln>0 && (u.poison>0||u.frozen>0)) b+=`<span class="badge debuff">😵</span>`;
   if(u.frozen>0) b+=`<span class="badge debuff">❄️${u.frozen}</span>`;
   if(u.overheat) b+=`<span class="badge debuff">🥵</span>`;
   u.el.querySelector('.badges').innerHTML=b;
@@ -636,9 +636,10 @@ function rand(arr){ const a=alive(arr); return a[Math.floor(Math.random()*a.leng
 
 async function dealDamage(target, amount, opt={}){
   if(!target||!target.alive) return 0;
-  if(target.dodge){ target.dodge=false; pop(target,'閃避','miss'); fxOn(target,'🎯'); log(`　${target.emoji} ${target.name} <span class="sk">閃避</span>了攻擊`); paintAll(); return 0; }
+  if(target.dodgeP>0 && Math.random()<target.dodgeP){ pop(target,'閃避','miss'); fxOn(target,'🎯'); log(`　${target.emoji} ${target.name} <span class="sk">閃避</span>了攻擊`); paintAll(); return 0; }   // 機率閃避（持續數回合、每次受擊判定、不消耗）
   let dmg=Math.round(amount * (target.vuln>0?(1+(0.15+(perks.vulnBonus||0))*target.vuln):1));
   if(target.taunt>0) dmg=Math.round(dmg*0.5);   // 嘲諷中的坦克：減傷 50%
+  if(perks.dmgReduce>0 && target.side==='ally') dmg=Math.round(dmg*(1-perks.dmgReduce));   // 銅牆 boon：全隊 %減傷（隨疊成長、追得上敵人 %攻擊）
   let dealt=0;
   if(target.shield>0){
     const absorbed=Math.min(target.shield,dmg); target.shield-=absorbed; dmg-=absorbed;
@@ -691,7 +692,7 @@ async function useSkill(u, ownSide, foeSide){
     case 'freeze': { const fs=alive(foeSide); const tgt=fs.sort((a,b)=>b.atk-a.atk)[0]; if(tgt){tgt.frozen=3; tgt.vuln=(tgt.vuln||0)+1; tgt.vulnT=Math.max(tgt.vulnT||0,4); auraOn(tgt,'rgba(120,180,255,.6)'); fxOn(tgt,'❄️'); pop(tgt,'❄️凍結','miss'); log(`　❄️ ${tgt.emoji} ${tgt.name} 被罰站 3 回合＋易傷`,'sk');} break; }
     case 'heal':   { const cand=alive(ownSide).filter(a=>a.id!=='helper'); const t=cand.sort((a,b)=>a.hp/a.maxHp-b.hp/b.maxHp)[0]; if(t){const h=Math.round(t.maxHp*0.5); t.hp=Math.min(t.maxHp,t.hp+h); auraOn(t,'rgba(74,208,125,.5)'); fxOn(t,'➕'); pop(t,'+'+h,'heal'); log(`　💧 治療 ${t.emoji} ${t.name} +${h}`,'he'); cand.forEach(a=>{ if(a!==t){ const hh=Math.round(a.maxHp*0.12); a.hp=Math.min(a.maxHp,a.hp+hh); if(hh>0){fxOn(a,'➕'); pop(a,'+'+hh,'heal');} } });} break; }   // 主補 50% + 全隊小補 12%（補師流續命引擎）
     case 'empower': alive(ownSide).forEach(a=>{a.rally=2; a.crit=Math.min(0.9,(a.crit||0)+0.22); auraOn(a,'rgba(201,169,110,.5)'); fxOn(a,'📈');}); log(`　📈 全隊 攻擊↑（數回合）、爆擊率永久↑`,'sk'); break;
-    case 'dodge':  alive(ownSide).forEach(a=>{a.dodge=true; auraOn(a,'rgba(201,169,110,.55)'); fxOn(a,'🎯');}); log(`　🎯 全隊預判，閃避各自下一次攻擊`,'sk'); break;
+    case 'dodge':  alive(ownSide).forEach(a=>{a.dodgeP=0.5; a.dodgeT=3; auraOn(a,'rgba(201,169,110,.55)'); fxOn(a,'🎯');}); log(`　🎯 全隊預判：3 回合內每次受擊 50% 機率閃避`,'sk'); break;
     case 'summon': {
       allies = allies.filter(a=>!(a.id==='helper' && !a.alive));            // 清掉死掉的小雞
       if(allies.filter(a=>a.id==='helper').length < 3){                     // 場上最多 3 隻（還原）
@@ -713,7 +714,7 @@ async function useSkill(u, ownSide, foeSide){
 }
 function mkFoeAlly(){
   return {id:'helper',name:'促銷小幫手',job:'',emoji:'🐣',side:'ally',maxHp:45,hp:45,baseAtk:14,atk:14,spd:11,
-    skill:null,cdLeft:99,cd:99,shield:0,dodge:0,overheat:false,rally:0,alive:true,cry:'',_firstHit:!!perks.firstStrikeCrit};   // 還原：不縮放（Sasha 本就是壟斷隊一員，縮放會 imba）
+    skill:null,cdLeft:99,cd:99,shield:0,dodgeP:0,dodgeT:0,overheat:false,rally:0,alive:true,cry:'',_firstHit:!!perks.firstStrikeCrit};   // 還原：不縮放（Sasha 本就是壟斷隊一員，縮放會 imba）
 }
 
 // 回合開始：只檢查「凍結＝跳過這次行動」（凍結倒數＋所有狀態結算都移到回合末統一做）
@@ -735,6 +736,7 @@ async function endOfRound(){
     }
     if(u.vuln>0 && u.vulnT>0){ u.vulnT--; if(u.vulnT<=0){ u.vuln=Math.max(0,u.vuln-1); if(u.vuln>0)u.vulnT=2; } }
     if(u.frozen>0) u.frozen--;
+    if(u.dodgeT>0){ u.dodgeT--; if(u.dodgeT<=0)u.dodgeP=0; }
     if(u.side==='ally'){ if(u.rally>0){ u.rally--; if(u.rally===0)pop(u,'攻↑結束','miss'); } if(u.taunt>0)u.taunt--; }
   }
   paintAll(); if(any){ sfx('poison'); await sleep(280); }
@@ -762,7 +764,7 @@ async function enemyTurn(u){
   const t=taunters.length?taunters[0]:rand(allies);   // 有人嘲諷就打他
   log(`${u.emoji} ${u.name} 攻擊 ${t.emoji} ${t.name}`,'dm');
   lungeFx(u); await sleep(165);
-  const weak=(u.vuln>0 && u.poison>0)?Math.max(0.4,1-0.08*u.vuln):1;   // 虛弱：易傷+中毒的敵人攻擊力 -8%/層（最多-60%）→ 易傷流/毒流的減傷 niche
+  const weak=(perks.weaken && u.vuln>0 && (u.poison>0||u.frozen>0))?Math.max(0.4,1-0.08*u.vuln):1;   // 虛弱(boon 解鎖)：易傷+任一減益的敵人攻擊力 -8%/層（最多 -60%）
   await dealDamage(t, u.atk*weak*(0.9+Math.random()*0.25));
   await sleep(330);
 }
@@ -782,6 +784,8 @@ const BOONS=[
   {id:'rest',      icon:'➕', name:'休整',     desc:'每波開始多回 18% 血量',         tags:['regen','heal'], apply:()=>perks.waveHeal+=0.18},
   {id:'berserk',   icon:'🔥', name:'狂戰',     desc:'血量越低攻擊越高（最多 +40%）', tags:['overclock','armorbreak'], once:true, apply:()=>perks.berserk=true},
   {id:'ramp',      icon:'🔺', name:'連環殺意', desc:'每次爆擊全隊爆擊率永久 +2%',     tags:['assassinate'], once:true, apply:()=>perks.critRamp=true},
+  {id:'weaken',    icon:'😵', name:'積弱',     desc:'易傷且帶任一減益的敵人，攻擊力大幅下降', tags:['corrode','armorbreak','hypnosis','freeze'], once:true, apply:()=>perks.weaken=true},
+  {id:'bulwark',   icon:'🧱', name:'銅牆',     desc:'全隊受到的傷害 -12%（可疊、上限 60%）',  tags:['taunt','armor','shield','regen','heal'], apply:()=>perks.dmgReduce=Math.min(0.6,(perks.dmgReduce||0)+0.12)},
 ];
 function pickBoons(){
   const teamSkills=new Set([...selected].map(id=>VILLAGERS.find(v=>v.id===id)?.skill));
