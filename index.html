@@ -192,10 +192,10 @@
   .soundhint{margin:8px auto 2px;max-width:560px;text-align:center;font-size:13.5px;color:var(--gold-hi);background:rgba(201,169,110,.1);border:1px solid rgba(201,169,110,.3);border-radius:12px;padding:9px 16px;cursor:pointer;transition:.15s}
   .soundhint:hover{background:rgba(201,169,110,.2)}
   .soundhint b{color:var(--gold);text-decoration:underline}
-  .npccard{position:absolute;inset:0;background:rgba(6,8,15,.85);display:none;align-items:center;justify-content:center;z-index:10;padding:14px}
+  .npccard{position:fixed;inset:0;background:rgba(6,8,15,.88);display:none;align-items:center;justify-content:center;z-index:70;padding:16px}
   .npccard.show{display:flex;animation:fadein .2s}
   .npcinner{background:linear-gradient(160deg,var(--navy2),var(--navy3));border:2px solid var(--gold);border-radius:16px;
-    padding:18px 18px 16px;max-width:330px;width:100%;text-align:center;position:relative;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+    padding:18px 18px 16px;max-width:330px;width:100%;max-height:88vh;overflow-y:auto;text-align:center;position:relative;box-shadow:0 18px 50px rgba(0,0,0,.5)}
   .npcinner .x{position:absolute;top:6px;right:12px;color:#8e96b5;cursor:pointer;font-size:22px;line-height:1}
   .npcinner .x:hover{color:#fff}
   .npcinner canvas{image-rendering:pixelated;display:block;margin:0 auto 4px}
@@ -621,7 +621,7 @@ function flashTarget(u){ if(!u.el)return;
   const b=document.createElement('div'); b.className='burst'; u.el.appendChild(b); setTimeout(()=>b.remove(),440); }
 function shockAt(u,color){ if(!u.el)return; const s=document.createElement('div'); s.className='shock'; if(color)s.style.borderColor=color; u.el.appendChild(s); setTimeout(()=>s.remove(),620); }
 function tintFlash(color){ const t=$('#arenaTint'); if(!t)return; t.style.background=color||'rgba(201,169,110,.5)'; t.classList.remove('go'); void t.offsetWidth; t.classList.add('go'); }
-function log(html,cls=''){ const l=$('#log'); const d=document.createElement('div'); d.className='ll '+cls; d.innerHTML=html; l.appendChild(d); l.scrollTop=l.scrollHeight; }
+function log(html,cls=''){ const l=$('#log'); const d=document.createElement('div'); d.className='ll '+cls; d.innerHTML=html; l.appendChild(d); while(l.childElementCount>36) l.removeChild(l.firstChild); l.scrollTop=l.scrollHeight; }
 async function banner(icon,title,sub){ const b=$('#skb'); b.innerHTML=`<span class="si">${icon}</span>${title}<small>${sub||''}</small>`;
   b.classList.remove('show'); void b.offsetWidth; b.classList.add('show'); await sleep(700); }
 
