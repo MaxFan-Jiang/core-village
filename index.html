@@ -539,6 +539,14 @@ function resetPerks(){ perks={lifesteal:0,critChain:false,teamCrit:0,critDmg:0,a
 resetPerks();
 // 浴血：敵人倒下時全隊回血（隨擊殺放大，餵血甲消耗流）
 function killHeal(){ if(perks.killHeal<=0) return; const list=alive(allies); list.forEach(a=>{ a.hp=Math.min(a.maxHp,a.hp+Math.round(a.maxHp*perks.killHeal)); }); if(list[0]) pop(list[0],'🧛','heal'); }
+// 毒蔓延：中毒的敵人死亡 → 毒囊破裂，把當前毒層數疊到其他所有存活敵人身上＝毒的「複利」。越多怪帶毒死、剩下的毒越濃（3→6→12→24…雪球）→ 群戰 AoE 滾雪球；但對單體 boss 無效（沒有其他怪可蔓延）＝與爆擊（單體強）區隔出毒的獨立身份。spreadFrac 為蔓延比例旋鈕（首版 1.0＝全額；嫌太 swingy 改 0.5 或只蔓延一隻）
+const POISON_SPREAD_FRAC=1.0;
+function spreadPoison(dead){
+  const layers=Math.round((dead.poison||0)*POISON_SPREAD_FRAC); if(layers<=0) return;
+  const others=alive(foes).filter(f=>f!==dead); if(!others.length) return;
+  others.forEach(f=>{ f.poison=(f.poison||0)+layers; f.poisonT=Math.max(f.poisonT||0,4); fxOn(f,'☠️'); pop(f,'☠️+'+layers,'dmg'); });
+  log(`　☠️ ${dead.emoji} ${dead.name} 毒囊破裂，毒素蔓延到其他敵人（各 +${layers} 層）`,'sk');
+}
 
 /* ---------- 渲染戰場：建一次、就地更新（動畫才不會被洗掉）---------- */
 let uidc=0;
@@ -657,7 +665,7 @@ async function dealDamage(target, amount, opt={}){
     shake(opt.crit||opt.big); sfx(opt.crit?'crit':'hit');
     await sleep(opt.crit?95:55);   // 打擊頓挫 hitstop
   }
-  if(target.hp<=0){ target.hp=0; target.alive=false; sfx('ko'); log(`　💀 ${target.emoji} ${target.name} 倒下`,'ko'); if(target.side==='foe') killHeal(); }
+  if(target.hp<=0){ target.hp=0; target.alive=false; sfx('ko'); log(`　💀 ${target.emoji} ${target.name} 倒下`,'ko'); if(target.side==='foe'){ killHeal(); spreadPoison(target); } }
   paintAll();
   return dealt;
 }
@@ -711,7 +719,7 @@ async function useSkill(u, ownSide, foeSide){
     case 'hypnosis': alive(foeSide).forEach(f=>{ f.frozen=Math.max(f.frozen,1); f.vuln=(f.vuln||0)+1; f.vulnT=3; auraOn(f,'rgba(155,109,214,.6)'); fxOn(f,'🌀'); }); log(`　🌀 全場催眠！敵人罰站＋易傷`,'sk'); break;
     case 'overclock': { const t=alive(foeSide).sort((a,b)=>b.maxHp-a.maxHp)[0]; if(t){ await basicAttack(u,[t],2.2); shake(true); if(t.alive){ const bonus=Math.round(t.maxHp*0.15); fxOn(t,'⚡'); await dealDamage(t, bonus, {big:true,crit:true}); } log(`　⚡ 超頻過載！鎖定最硬目標，爆發＋其最大血量 15%`,'sk'); } u.overheat=true; break; }   // 單體 anti-boss 核彈：鎖最高maxHp、×2.2＋敵maxHp 15%；與 splash(AoE)/detonate(引爆) 區隔
     case 'regen': alive(ownSide).forEach(a=>{ a.regen=Math.round(a.maxHp*0.13); a.regenT=4; auraOn(a,'rgba(94,200,160,.5)'); fxOn(a,'➕'); }); log(`　➕ 全隊再生（4 回合）`,'sk'); break;   // 8%→13%/回、3→4 回合（再生流續命）
-    case 'armorbreak': { const t=lowestHp(foeSide); await basicAttack(u,foeSide,1.4); if(t&&t.alive){ const exThr=Math.min(0.40,0.18+0.006*curWave); const thr=(t.emoji==='👾')?exThr*0.5:exThr; if(t.hp < t.maxHp*thr){ t.hp=0; t.alive=false; impactFx(t,'💥'); pop(t,'拆解！','crit'); sfx('ko'); log(`　🔩 ${t.emoji} ${t.name} 被精密拆解（即死）`,'sk'); if(t.side==='foe') killHeal(); } else { t.vuln=(t.vuln||0)+2; t.vulnT=Math.max(t.vulnT||0,4); auraOn(t,'rgba(138,143,158,.6)'); fxOn(t,'🔩'); log(`　🔩 ${t.emoji} ${t.name} 易傷×${t.vuln}`,'sk'); } } break; }   // 斬殺線隨波↑(18%→40%)、魔王門檻減半→越後期越能斬boss；否則疊易傷
+    case 'armorbreak': { const t=lowestHp(foeSide); await basicAttack(u,foeSide,1.4); if(t&&t.alive){ const exThr=Math.min(0.40,0.18+0.006*curWave); const thr=(t.emoji==='👾')?exThr*0.5:exThr; if(t.hp < t.maxHp*thr){ t.hp=0; t.alive=false; impactFx(t,'💥'); pop(t,'拆解！','crit'); sfx('ko'); log(`　🔩 ${t.emoji} ${t.name} 被精密拆解（即死）`,'sk'); if(t.side==='foe'){ killHeal(); spreadPoison(t); } } else { t.vuln=(t.vuln||0)+2; t.vulnT=Math.max(t.vulnT||0,4); auraOn(t,'rgba(138,143,158,.6)'); fxOn(t,'🔩'); log(`　🔩 ${t.emoji} ${t.name} 易傷×${t.vuln}`,'sk'); } } break; }   // 斬殺線隨波↑(18%→40%)、魔王門檻減半→越後期越能斬boss；否則疊易傷
     case 'splash': { const main=lowestHp(foeSide); const dealt=await basicAttack(u,foeSide,1.8); if(dealt>0){ for(const f of alive(foeSide)){ if(f===main)continue; fxOn(f,'🌊'); await dealDamage(f, Math.round(dealt*0.5), {}); } } log(`　🌊 濺射！主擊一半波及全場`,'sk'); break; }   // 擴散：主擊傷害50%濺全體、隨爆擊放大
     case 'detonate': { const main=lowestHp(foeSide); await basicAttack(u,foeSide,1.5); if(main && !main.alive){ const boom=Math.round(main.maxHp*0.3); shake(true); for(const f of alive(foeSide)){ fxOn(f,'🧨'); await dealDamage(f, boom, {big:true}); } log(`　🧨 ${main.emoji} 被引爆，殘骸衝擊波炸全場`,'sk'); } break; }   // 引爆：擊殺則以該敵 maxHp 30% AoE
     case 'armor': alive(ownSide).forEach(a=>{ const s=Math.round(a.maxHp*0.6); a.shield+=s; auraOn(a,'rgba(110,135,184,.55)'); fxOn(a,'🪖'); }); log(`　🪖 全隊披上相當於 60% 血量的護甲盾`,'sk'); break;   // %護甲：盾=maxHp 60%（隨血縮放、不怕後期被穿）
@@ -744,7 +752,7 @@ async function endOfRound(){
       const dmg=Math.max(1,Math.round(u.maxHp*0.02*u.poison*(1+(perks.poisonMul||0))));   // 毒吃%血量：每層 2% maxHp/回
       u.hp-=dmg; u.poisonT--; if(u.poisonT<=0){ u.poison=Math.max(0,u.poison-1); if(u.poison>0)u.poisonT=2; }
       hurtFx(u); fxOn(u,'☠️'); pop(u,'-'+dmg,'dmg'); any=true;
-      if(u.hp<=0){ u.hp=0; u.alive=false; sfx('ko'); log(`　💀 ${u.emoji} ${u.name} 毒發身亡`,'ko'); if(u.side==='foe') killHeal(); }
+      if(u.hp<=0){ u.hp=0; u.alive=false; sfx('ko'); log(`　💀 ${u.emoji} ${u.name} 毒發身亡`,'ko'); if(u.side==='foe'){ killHeal(); spreadPoison(u); } }
     }
     if(u.vuln>0 && u.vulnT>0){ u.vulnT--; if(u.vulnT<=0){ u.vuln=Math.max(0,u.vuln-1); if(u.vuln>0)u.vulnT=2; } }
     if(u.frozen>0) u.frozen--;
