@@ -135,10 +135,12 @@
   .skbanner{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%) scale(.8);
     background:linear-gradient(135deg,var(--navy2),var(--navy3));border:1.5px solid var(--gold);
     border-radius:14px;padding:14px 26px;font-family:var(--serif);font-weight:700;font-size:18px;color:#fff;
-    opacity:0;pointer-events:none;z-index:20;box-shadow:0 14px 40px rgba(0,0,0,.5);text-align:center;white-space:nowrap}
+    opacity:0;pointer-events:none;z-index:20;box-shadow:0 14px 40px rgba(0,0,0,.5);text-align:center;white-space:nowrap;max-width:90vw;box-sizing:border-box}
   .skbanner.show{animation:skb 1.05s ease forwards}
   .skbanner .si{color:var(--gold);font-size:22px;margin-right:6px}
   .skbanner small{display:block;font-family:var(--sans);font-size:12.5px;color:#bcc3dd;font-weight:400;margin-top:3px}
+  /* 手機 9:16 直式：取消 nowrap、允許換行＋限寬，避免長技能名/描述橫向爆框 */
+  @media(max-width:560px){ .skbanner{white-space:normal;max-width:88vw;padding:11px 16px;font-size:15.5px;line-height:1.35} .skbanner .si{font-size:19px} .skbanner small{font-size:11.5px} }
   @keyframes skb{0%{opacity:0;transform:translate(-50%,-50%) scale(.8)}15%{opacity:1;transform:translate(-50%,-50%) scale(1.05)}80%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-62%) scale(1)}}
 
   .wavebar{text-align:center;margin:4px 0 16px;font-size:14px;color:var(--gold);font-weight:700;letter-spacing:.05em}
@@ -338,17 +340,17 @@
 const SKILLS = {
   shield:     {name:"風險對沖", icon:"🛡️", desc:"全隊獲得護盾，吸收下一次傷害", kind:"util"},
   taunt:      {name:"挺身",     icon:"🦺", desc:"嘲諷所有敵人吸引火力到自己，獲得大護盾並大幅減傷", kind:"util"},
-  freeze:     {name:"罰站",     icon:"❄️", desc:"隨機凍結 1 個敵人罰站 3 回合並疊 3 層易傷，並放冰霜 Nova（隨全場易傷層數放大）轟全場", kind:"util"},
+  freeze:     {name:"罰站",     icon:"❄️", desc:"隨機凍結 2 個敵人並疊易傷，再放冰霜 Nova 轟全場", kind:"util"},
   assassinate:{name:"自動化連擊",icon:"🗡️", desc:"連擊最多 3 個敵人；爆擊疊『殺意』提升爆擊率，爆率滿後殺意轉攻擊力", kind:"atk"},
-  dodge:      {name:"分鏡預判", icon:"🎯", desc:"全隊 3 回合內、每次受擊 50% 機率閃避", kind:"util"},
+  dodge:      {name:"分鏡預判", icon:"🎯", desc:"全隊 3 回合內、每次受擊 70% 機率閃避", kind:"util"},
   heal:       {name:"散熱模組", icon:"💧", desc:"大幅治療血量最低的隊友，並小補全隊", kind:"util"},
   summon:     {name:"檔期促銷", icon:"🎁", desc:"召喚一個援軍小幫手", kind:"util"},
   corrode:    {name:"蝕刻",     icon:"☠️", desc:"攻擊，並讓全體敵人中毒，可疊層（中毒敵死亡會蔓延）", kind:"atk"},
   empower:    {name:"市場賦能", icon:"📈", desc:"全隊攻擊力提升（數回合）、爆擊率永久疊加", kind:"util"},
-  hypnosis:   {name:"全場催眠", icon:"🌀", desc:"凍結所有敵人 1 回合並疊易傷（易傷之王、放招快），順手小幅治療全隊", kind:"util"},
+  hypnosis:   {name:"全場催眠", icon:"🌀", desc:"凍結所有敵人並疊易傷，順手小補全隊", kind:"util"},
   overclock:  {name:"超頻",     icon:"⚡", desc:"鎖定最硬的敵人，爆發＋其最大血量 15%（專剋高血魔王）；下回合過熱", kind:"atk"},
   regen:      {name:"節能續航", icon:"➕", desc:"全隊獲得『再生』，4 回合內每回合回血", kind:"util"},
-  armorbreak: {name:"精密拆解", icon:"🔩", desc:"殘血即死並以剩餘血量（至少各敵最大血 12%）連鎖引爆全場，被砸進斬殺線者接續斬殺，最後再重擊一個敵人；無殘血目標時改疊 2 層易傷", kind:"atk"},
+  armorbreak: {name:"精密拆解", icon:"🔩", desc:"殘血敵即死、以餘血連鎖引爆全場，最後重擊一名敵人；無殘血則疊易傷", kind:"atk"},
   splash:     {name:"擴散打擊", icon:"🌊", desc:"重擊主目標，傷害的一半濺射全體（隨你養爆擊一起放大）", kind:"atk"},
   detonate:   {name:"連鎖引爆", icon:"🧨", desc:"重擊主目標；若擊殺，以其最大血量 30% 引爆波及全體", kind:"atk"},
   armor:      {name:"披甲", icon:"🪖", desc:"全隊獲得相當於血量 60% 的護甲盾（按比例、後期不怕被穿）", kind:"util"},
@@ -705,7 +707,7 @@ async function useSkill(u, ownSide, foeSide){
   switch(u.skill){
     case 'shield': alive(ownSide).forEach(a=>{a.shield+=26; auraOn(a,'rgba(94,200,224,.55)'); fxOn(a,'🛡️');}); break;
     case 'taunt': { u.taunt=3; u.shield+=Math.round(u.maxHp*0.5); auraOn(u,'rgba(110,135,184,.65)'); fxOn(u,'🦺'); pop(u,'嘲諷！','miss'); log(`　🦺 ${u.emoji} ${u.name} 挺身嘲諷，火力都往她身上、且傷害砍半`,'sk'); break; }
-    case 'freeze': { const tgt=rand(foeSide); if(tgt){ tgt.frozen=3; tgt.vuln=(tgt.vuln||0)+3; tgt.vulnT=Math.max(tgt.vulnT||0,4); auraOn(tgt,'rgba(120,180,255,.6)'); fxOn(tgt,'❄️'); pop(tgt,'❄️凍結','miss'); log(`　❄️ ${tgt.emoji} ${tgt.name} 被罰站 3 回合＋易傷 ×3`,'sk'); }   // ⛔ Max 鐵律：單體凍結＝隨機 1 隻（⛔絕不鎖最高 atk＝會自動剋 BOSS、過強）、凍 3＝易傷 +3。岱華自身只貢獻 +3 totalVuln（不再一次 +6），靠 MAX 全場鋪量餵 Nova
+    case 'freeze': { const _pool=alive(foeSide).slice(); const _tgts=[]; for(let i=0;i<2 && _pool.length;i++){ _tgts.push(_pool.splice(Math.floor(Math.random()*_pool.length),1)[0]); } for(const tgt of _tgts){ tgt.frozen=Math.min(3,(tgt.frozen||0)+2); tgt.vuln=(tgt.vuln||0)+2; tgt.vulnT=Math.max(tgt.vulnT||0,4); auraOn(tgt,'rgba(120,180,255,.6)'); fxOn(tgt,'❄️'); pop(tgt,'❄️凍結','miss'); } if(_tgts.length) log(`　❄️ 隨機凍結 ${_tgts.length} 個敵人＋易傷 ×2`,'sk');   // ⛔ Max 鐵律：一次 2 個隨機目標（⛔絕不鎖最高 atk＝會自動剋 BOSS）、凍結可疊加 frozen+=2（修掉舊「置換」bug，與 MAX hypnosis 同場會累加）、易傷 +2。⛔凍結硬上限 3＝防再生王 immortal hang（閉環鐵律：單怪 frozen 必須 ≤3，8000-run sim 驗證）；易傷無上限照疊餵 Nova
       // 冰霜 Nova（岱華的對群解）：以全場易傷總層數放 AoE，疊越多易傷越痛，再吃各敵自身易傷加成（雙重 scaling）。
       // 🔧 首要旋鈕：每層 1.8% maxHp（0.018），隨全場易傷總層數放大。岱華改單體後 totalVuln 來源＝MAX 全場(每隻+1)×隻數 + 岱華單體 +3 + 嘉彧 fallback；8 隻小怪 MAX 放一次≈+8、岱華+3≈11 層→~20% maxHp，再 ×各敵自身易傷加成。嫌弱↑0.022、嫌強↓0.015。待 Max playtest。
       const totalVuln=alive(foeSide).reduce((s,f)=>s+(f.vuln||0),0);
@@ -713,7 +715,7 @@ async function useSkill(u, ownSide, foeSide){
       break; }
     case 'heal':   { const cand=alive(ownSide).filter(a=>a.id!=='helper'); const t=cand.sort((a,b)=>a.hp/a.maxHp-b.hp/b.maxHp)[0]; if(t){const h=Math.round(t.maxHp*0.5); t.hp=Math.min(t.maxHp,t.hp+h); auraOn(t,'rgba(74,208,125,.5)'); fxOn(t,'➕'); pop(t,'+'+h,'heal'); log(`　💧 治療 ${t.emoji} ${t.name} +${h}`,'he'); cand.forEach(a=>{ if(a!==t){ const hh=Math.round(a.maxHp*0.12); a.hp=Math.min(a.maxHp,a.hp+hh); if(hh>0){fxOn(a,'➕'); pop(a,'+'+hh,'heal');} } });} break; }   // 主補 50% + 全隊小補 12%（補師流續命引擎）
     case 'empower': alive(ownSide).forEach(a=>{a.rally=2; a.crit=Math.min(0.9,(a.crit||0)+0.22); auraOn(a,'rgba(201,169,110,.5)'); fxOn(a,'📈');}); log(`　📈 全隊 攻擊↑（數回合）、爆擊率永久↑`,'sk'); break;
-    case 'dodge':  alive(ownSide).forEach(a=>{a.dodgeP=0.5; a.dodgeT=3; auraOn(a,'rgba(201,169,110,.55)'); fxOn(a,'🎯');}); log(`　🎯 全隊預判：3 回合內每次受擊 50% 機率閃避`,'sk'); break;
+    case 'dodge':  alive(ownSide).forEach(a=>{a.dodgeP=0.7; a.dodgeT=3; auraOn(a,'rgba(201,169,110,.55)'); fxOn(a,'🎯');}); log(`　🎯 全隊預判：3 回合內每次受擊 70% 機率閃避`,'sk'); break;   // Max playtest：50%→70%（Lynn 太不穩定；坦法已有新選擇 max+岱華，不怕配 Joce 過強）
     case 'summon': {
       allies = allies.filter(a=>!(a.id==='helper' && !a.alive));            // 清掉死掉的小雞
       if(allies.filter(a=>a.id==='helper').length < 3){                     // 場上最多 3 隻（還原）
