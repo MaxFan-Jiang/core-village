@@ -521,6 +521,7 @@ function genWave(n){
   } else {
     const count=Math.min(5, 2+Math.floor(n/2.5));
     for(let i=0;i<count;i++) raw.push(scale(FOE_POOL[Math.floor(Math.random()*FOE_POOL.length)],n));
+    if(n>=4 && n%4===0) raw.push(Object.assign(scale({name:'重甲 Bug',emoji:'🛡️',hp:130,atk:13,spd:6},n),{armor:0.7}));   // niche 精英：重甲怪——高%減傷、普攻爆擊只刮皮，每層易傷削穿護甲（逼易傷流）
   }
   return raw.map(mkFoe);
 }
@@ -553,7 +554,7 @@ function darken(hex,f){ const n=parseInt(hex.slice(1),16); const r=Math.round(((
 const SKILLCOL={shield:'#5e8fc8',taunt:'#6b87b8',freeze:'#79b6e0',assassinate:'#6f8fb5',dodge:'#e89ac0',heal:'#6abf8a',summon:'#e0a060',corrode:'#8bbf5a',empower:'#C9A96E',hypnosis:'#9b6dd6',overclock:'#e0704f',regen:'#5ec8a0',armorbreak:'#8a8f9e',splash:'#5ec8e0',detonate:'#e0704f',armor:'#6b87b8'};
 function unitSprite(u){
   if(u.side==='foe'){
-    const c=u.emoji==='🦠'?'#8ad08a':u.emoji==='💧'?'#5ec8e0':u.emoji==='👾'?'#c98ad0':u.emoji==='❌'?'#ff6d7a':'#9ed06a';
+    const c=u.emoji==='🦠'?'#8ad08a':u.emoji==='💧'?'#5ec8e0':u.emoji==='👾'?'#c98ad0':u.emoji==='❌'?'#ff6d7a':u.emoji==='🛡️'?'#9aa3b5':'#9ed06a';
     return {name:'bug', ov:{g:c, d:darken(c,0.6)}};
   }
   if(u.id==='helper') return {name:'chick', ov:{}};
@@ -608,6 +609,7 @@ function paint(u){
   if(u.frozen>0) b+=`<span class="badge debuff">❄️${u.frozen}</span>`;
   if(u.overheat) b+=`<span class="badge debuff">🥵</span>`;
   if((u.enrage||0)>2) b+=`<span class="badge debuff">😡</span>`;
+  if((u.armor||0)>0) b+=`<span class="badge">🛡️${Math.round(Math.max(0,u.armor-0.12*(u.vuln||0))*100)}%</span>`;   // 重甲：當前有效護甲（疊易傷會降到 0）
   u.el.querySelector('.badges').innerHTML=b;
 }
 function paintAll(){ allies.forEach(paint); foes.forEach(paint); }
@@ -641,6 +643,7 @@ async function dealDamage(target, amount, opt={}){
   let dmg=Math.round(amount * (target.vuln>0?(1+(0.15+(perks.vulnBonus||0))*target.vuln):1));
   if(target.taunt>0) dmg=Math.round(dmg*0.5);   // 嘲諷中的坦克：減傷 50%
   if(perks.dmgReduce>0 && target.side==='ally') dmg=Math.round(dmg*(1-perks.dmgReduce));   // 銅牆 boon：全隊 %減傷（隨疊成長、追得上敵人 %攻擊）
+  if(target.armor>0){ const eff=Math.max(0,target.armor-0.12*(target.vuln||0)); dmg=Math.round(dmg*(1-eff)); }   // 重甲怪：高 %減傷，每層易傷削穿 0.12（逼易傷流才打得動）
   let dealt=0;
   if(target.shield>0){
     const absorbed=Math.min(target.shield,dmg); target.shield-=absorbed; dmg-=absorbed;
