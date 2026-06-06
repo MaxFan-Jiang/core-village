@@ -764,7 +764,7 @@ async function enemyTurn(u){
   if(!u.alive||alive(allies).length===0) return;
   actFx(u);
   const taunters=alive(allies).filter(a=>a.taunt>0);
-  const t=taunters.length?taunters[0]:rand(allies);   // 有人嘲諷就打他
+  const t=taunters.length?taunters[0]:(alive(allies).sort((a,b)=>b.maxHp-a.maxHp)[0]||rand(allies));   // 有嘲諷打他；否則打血最厚的（自然前排、保護後排輸出）→ 坦不再只限 Jocelyn
   log(`${u.emoji} ${u.name} 攻擊 ${t.emoji} ${t.name}`,'dm');
   lungeFx(u); await sleep(165);
   const weak=(perks.weaken && u.vuln>0 && (u.poison>0||u.frozen>0))?Math.max(0.4,1-0.08*u.vuln):1;   // 虛弱(boon 解鎖)：易傷+任一減益的敵人攻擊力 -8%/層（最多 -60%）
