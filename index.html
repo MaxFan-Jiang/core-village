@@ -348,7 +348,7 @@ const SKILLS = {
   hypnosis:   {name:"全場催眠", icon:"🌀", desc:"凍結所有敵人 1 回合並疊易傷（易傷之王、放招快），順手小幅治療全隊", kind:"util"},
   overclock:  {name:"超頻",     icon:"⚡", desc:"鎖定最硬的敵人，爆發＋其最大血量 15%（專剋高血魔王）；下回合過熱", kind:"atk"},
   regen:      {name:"節能續航", icon:"➕", desc:"全隊獲得『再生』，4 回合內每回合回血", kind:"util"},
-  armorbreak: {name:"精密拆解", icon:"🔩", desc:"重擊一個敵人；殘血即死並以剩餘血量連鎖引爆（被砸進斬殺線者接續斬殺），否則疊 2 層易傷", kind:"atk"},
+  armorbreak: {name:"精密拆解", icon:"🔩", desc:"殘血即死並以剩餘血量（至少各敵最大血 12%）連鎖引爆全場，被砸進斬殺線者接續斬殺，最後再重擊一個敵人；無殘血目標時改疊 2 層易傷", kind:"atk"},
   splash:     {name:"擴散打擊", icon:"🌊", desc:"重擊主目標，傷害的一半濺射全體（隨你養爆擊一起放大）", kind:"atk"},
   detonate:   {name:"連鎖引爆", icon:"🧨", desc:"重擊主目標；若擊殺，以其最大血量 30% 引爆波及全體", kind:"atk"},
   armor:      {name:"披甲", icon:"🪖", desc:"全隊獲得相當於血量 60% 的護甲盾（按比例、後期不怕被穿）", kind:"util"},
@@ -728,12 +728,15 @@ async function useSkill(u, ownSide, foeSide){
       alive(ownSide).forEach(a=>{ const h=Math.round(a.maxHp*0.08); if(h>0 && a.hp<a.maxHp){ a.hp=Math.min(a.maxHp,a.hp+h); fxOn(a,'➕'); pop(a,'+'+h,'heal'); } }); log(`　🌀 全場催眠！全場罰站 1 回合＋易傷 +1（可疊），全隊回 8%`,'sk'); break;
     case 'overclock': { const t=alive(foeSide).sort((a,b)=>b.maxHp-a.maxHp)[0]; if(t){ await basicAttack(u,[t],2.2); shake(true); if(t.alive){ const bonus=Math.round(t.maxHp*0.15); fxOn(t,'⚡'); await dealDamage(t, bonus, {big:true,crit:true}); } log(`　⚡ 超頻過載！鎖定最硬目標，爆發＋其最大血量 15%`,'sk'); } u.overheat=true; break; }   // 單體 anti-boss 核彈：鎖最高maxHp、×2.2＋敵maxHp 15%；與 splash(AoE)/detonate(引爆) 區隔
     case 'regen': alive(ownSide).forEach(a=>{ a.regen=Math.round(a.maxHp*0.13); a.regenT=4; auraOn(a,'rgba(94,200,160,.5)'); fxOn(a,'➕'); }); log(`　➕ 全隊再生（4 回合）`,'sk'); break;   // 8%→13%/回、3→4 回合（再生流續命）
-    case 'armorbreak': { await basicAttack(u,foeSide,1.4);
+    case 'armorbreak': {
       const exThrOf=(f)=>{ const e=Math.min(0.40,0.18+0.006*curWave); return (f.emoji==='👾')?e*0.5:e; };   // 斬殺線隨波↑(18%→40%)、魔王門檻減半
+      const AOE_PCT=0.12;   // 🔧 %血 AoE 底線（Max 拍板）：每次斬殺連鎖至少對各敵造成「其 maxHp 12%」傷害 → 深波/重甲/小rem 也炸得出有感；rem 較大時取 rem。首版待 playtest，嫌弱↑0.15、嫌強↓0.09
+      // ⛔ A 案（Max 拍板）：先斬殺、後普攻。斬殺迴圈在普攻前先掃，避免普攻先把斬殺線下的怪打死、吃掉斬殺目標（舊 bug：高波殘血怪被 1.4×普攻悶死→chain=0→AoE 不出）
       let chain=0;
-      while(chain<12){ const v=alive(foeSide).find(f=>f.hp>0 && f.hp < f.maxHp*exThrOf(f)); if(!v) break; const rem=Math.max(0,Math.round(v.hp)); v.hp=0; v.alive=false; impactFx(v,'💥'); pop(v,'拆解！','crit'); sfx('ko'); if(v.side==='foe'){ killHeal(); spreadPoison(v); } for(const o of alive(foeSide)){ fxOn(o,'🔩'); await dealDamage(o, rem, {big:true}); } chain++; }   // 連鎖斬殺：殘血即死 → 以「剩餘血量」AoE 砸全場 → 被打進斬殺線者接著斬 → 連鎖（cap 12 防爆）
+      while(chain<12){ const v=alive(foeSide).find(f=>f.hp>0 && f.hp < f.maxHp*exThrOf(f)); if(!v) break; const rem=Math.max(0,Math.round(v.hp)); v.hp=0; v.alive=false; impactFx(v,'💥'); pop(v,'拆解！','crit'); sfx('ko'); if(v.side==='foe'){ killHeal(); spreadPoison(v); } for(const o of alive(foeSide)){ fxOn(o,'🔩'); await dealDamage(o, Math.max(rem, Math.round(o.maxHp*AOE_PCT)), {big:true}); } chain++; }   // 連鎖斬殺：殘血即死 → 以 max(剩餘血量, 各敵maxHp×12%) AoE 砸全場 → 被打進斬殺線者接著斬 → 連鎖（cap 12 防爆）
       if(chain>0){ shake(true); log(`　🔩 精密拆解連鎖！連環斬殺 ${chain} 隻`,'sk'); }
-      else { const t=lowestHp(foeSide); if(t){ t.vuln=(t.vuln||0)+2; t.vulnT=Math.max(t.vulnT||0,4); auraOn(t,'rgba(138,143,158,.6)'); fxOn(t,'🔩'); log(`　🔩 ${t.emoji} ${t.name} 易傷×${t.vuln}`,'sk'); } }
+      await basicAttack(u,foeSide,1.4);   // 普攻收尾（A 案：移到斬殺之後；沒有斬殺目標時這就是「重擊一個敵人」的本體）
+      if(chain===0){ const t=lowestHp(foeSide); if(t){ t.vuln=(t.vuln||0)+2; t.vulnT=Math.max(t.vulnT||0,4); auraOn(t,'rgba(138,143,158,.6)'); fxOn(t,'🔩'); log(`　🔩 ${t.emoji} ${t.name} 易傷×${t.vuln}`,'sk'); } }
       break; }
     case 'splash': { const main=lowestHp(foeSide); const dealt=await basicAttack(u,foeSide,1.8); if(dealt>0){ for(const f of alive(foeSide)){ if(f===main)continue; fxOn(f,'🌊'); await dealDamage(f, Math.round(dealt*0.5), {}); } } log(`　🌊 濺射！主擊一半波及全場`,'sk'); break; }   // 擴散：主擊傷害50%濺全體、隨爆擊放大
     case 'detonate': { const main=lowestHp(foeSide); await basicAttack(u,foeSide,1.5); if(main && !main.alive){ const boom=Math.round(main.maxHp*0.3); shake(true); for(const f of alive(foeSide)){ fxOn(f,'🧨'); await dealDamage(f, boom, {big:true}); } log(`　🧨 ${main.emoji} 被引爆，殘骸衝擊波炸全場`,'sk'); } break; }   // 引爆：擊殺則以該敵 maxHp 30% AoE
