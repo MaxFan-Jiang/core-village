@@ -338,14 +338,14 @@
 const SKILLS = {
   shield:     {name:"風險對沖", icon:"🛡️", desc:"全隊獲得護盾，吸收下一次傷害", kind:"util"},
   taunt:      {name:"挺身",     icon:"🦺", desc:"嘲諷所有敵人吸引火力到自己，獲得大護盾並大幅減傷", kind:"util"},
-  freeze:     {name:"罰站",     icon:"❄️", desc:"凍結攻擊最高的 2 個敵人罰站 3 回合並使其易傷，並放冰霜 Nova（隨全場易傷層數放大）轟全場", kind:"util"},
+  freeze:     {name:"罰站",     icon:"❄️", desc:"隨機凍結 1 個敵人罰站 3 回合並疊 3 層易傷，並放冰霜 Nova（隨全場易傷層數放大）轟全場", kind:"util"},
   assassinate:{name:"自動化連擊",icon:"🗡️", desc:"連擊最多 3 個敵人；爆擊疊『殺意』提升爆擊率，爆率滿後殺意轉攻擊力", kind:"atk"},
   dodge:      {name:"分鏡預判", icon:"🎯", desc:"全隊 3 回合內、每次受擊 50% 機率閃避", kind:"util"},
   heal:       {name:"散熱模組", icon:"💧", desc:"大幅治療血量最低的隊友，並小補全隊", kind:"util"},
   summon:     {name:"檔期促銷", icon:"🎁", desc:"召喚一個援軍小幫手", kind:"util"},
   corrode:    {name:"蝕刻",     icon:"☠️", desc:"攻擊，並讓全體敵人中毒，可疊層（中毒敵死亡會蔓延）", kind:"atk"},
   empower:    {name:"市場賦能", icon:"📈", desc:"全隊攻擊力提升（數回合）、爆擊率永久疊加", kind:"util"},
-  hypnosis:   {name:"全場催眠", icon:"🌀", desc:"凍結所有敵人 2 回合並疊易傷（易傷之王），順手小幅治療全隊", kind:"util"},
+  hypnosis:   {name:"全場催眠", icon:"🌀", desc:"凍結所有敵人 1 回合並疊易傷（易傷之王、放招快），順手小幅治療全隊", kind:"util"},
   overclock:  {name:"超頻",     icon:"⚡", desc:"鎖定最硬的敵人，爆發＋其最大血量 15%（專剋高血魔王）；下回合過熱", kind:"atk"},
   regen:      {name:"節能續航", icon:"➕", desc:"全隊獲得『再生』，4 回合內每回合回血", kind:"util"},
   armorbreak: {name:"精密拆解", icon:"🔩", desc:"重擊一個敵人；殘血即死並以剩餘血量連鎖引爆（被砸進斬殺線者接續斬殺），否則疊 2 層易傷", kind:"atk"},
@@ -498,9 +498,9 @@ $('#autoBtn').addEventListener('click',()=>{
 });
 
 /* ---------- 建立戰鬥單位 ---------- */
-// 技能 CD（回合）平衡旋鈕：預設 3＝每 4 回合放一次。hypnosis=2＝每 3 回合放＝Max 放招更頻繁、全場凍結空窗從 2 回合砍到 1 回合（主力不再因空窗被秒、遊戲不崩盤）。
-// ⛔ 別設 hypnosis=1：每 2 回合放、凍 2 回合＝永久凍結＝敵人永不行動＝破閉環＋再生王零傷無限自癒掛機。CD 是平衡旋鈕、留引擎碼、不放貢獻者 villagers/*.json。
-const CD_BY_SKILL = { hypnosis: 2 };
+// 技能 CD（回合）平衡旋鈕：預設 3＝每 4 回合放一次。hypnosis=1＝每 2 回合放＝Max 放招最頻繁（凍1+易傷1+治癒1、靠次數疊量、餵岱華 Nova）。
+// ⛔ 鐵律：frozen 必須 < 放招間隔(=cd+1) 才有 gap、不永久凍結。hypnosis cd=1＝間隔 2＝凍結必須 ≤1（已設 Math.max(f,1)）。若把 hypnosis 凍結改回 2 又維持 cd=1＝永久凍結＝破閉環＋再生王零傷無限自癒，務必同動兩者。CD 留引擎碼、不放貢獻者 villagers/*.json。
+const CD_BY_SKILL = { hypnosis: 1 };
 function mkAlly(v){
   return {...v, side:'ally', maxHp:v.hp, hp:v.hp, baseHp:v.hp, baseAtk:v.atk, atk:v.atk,
     crit:(typeof v.crit==='number'?v.crit:0.08), critDmg:1.9, bloodlust:0,
@@ -705,9 +705,9 @@ async function useSkill(u, ownSide, foeSide){
   switch(u.skill){
     case 'shield': alive(ownSide).forEach(a=>{a.shield+=26; auraOn(a,'rgba(94,200,224,.55)'); fxOn(a,'🛡️');}); break;
     case 'taunt': { u.taunt=3; u.shield+=Math.round(u.maxHp*0.5); auraOn(u,'rgba(110,135,184,.65)'); fxOn(u,'🦺'); pop(u,'嘲諷！','miss'); log(`　🦺 ${u.emoji} ${u.name} 挺身嘲諷，火力都往她身上、且傷害砍半`,'sk'); break; }
-    case 'freeze': { const fs=alive(foeSide).sort((a,b)=>b.atk-a.atk); for(let i=0;i<Math.min(2,fs.length);i++){ const tgt=fs[i]; tgt.frozen=3; tgt.vuln=(tgt.vuln||0)+3; tgt.vulnT=Math.max(tgt.vulnT||0,4); auraOn(tgt,'rgba(120,180,255,.6)'); fxOn(tgt,'❄️'); pop(tgt,'❄️凍結','miss'); log(`　❄️ ${tgt.emoji} ${tgt.name} 被罰站 3 回合＋易傷 ×3`,'sk'); }   // ⛔ Max 鐵律：凍幾回合＝疊幾層易傷（凍 3＝易傷 +3，別再寫成 +1）。鎖 atk 前 2 名；frozen=3、cd=3 每 4 回合放＝仍有 1 回合 gap、不破閉環
+    case 'freeze': { const tgt=rand(foeSide); if(tgt){ tgt.frozen=3; tgt.vuln=(tgt.vuln||0)+3; tgt.vulnT=Math.max(tgt.vulnT||0,4); auraOn(tgt,'rgba(120,180,255,.6)'); fxOn(tgt,'❄️'); pop(tgt,'❄️凍結','miss'); log(`　❄️ ${tgt.emoji} ${tgt.name} 被罰站 3 回合＋易傷 ×3`,'sk'); }   // ⛔ Max 鐵律：單體凍結＝隨機 1 隻（⛔絕不鎖最高 atk＝會自動剋 BOSS、過強）、凍 3＝易傷 +3。岱華自身只貢獻 +3 totalVuln（不再一次 +6），靠 MAX 全場鋪量餵 Nova
       // 冰霜 Nova（岱華的對群解）：以全場易傷總層數放 AoE，疊越多易傷越痛，再吃各敵自身易傷加成（雙重 scaling）。
-      // 🔧 首要旋鈕：每層 1.8% maxHp（0.018）。Max 反映「偏爛」→ 由 0.012 上調；又因 MAX 易傷 +2→+1 使早期 totalVuln 下降，不調乘數 Nova 反而更弱。早期(~14層)≈25% maxHp、中期(~22層)≈40%，再 ×各敵易傷加成。嫌弱↑0.022、嫌強↓0.015。待 Max playtest。
+      // 🔧 首要旋鈕：每層 1.8% maxHp（0.018），隨全場易傷總層數放大。岱華改單體後 totalVuln 來源＝MAX 全場(每隻+1)×隻數 + 岱華單體 +3 + 嘉彧 fallback；8 隻小怪 MAX 放一次≈+8、岱華+3≈11 層→~20% maxHp，再 ×各敵自身易傷加成。嫌弱↑0.022、嫌強↓0.015。待 Max playtest。
       const totalVuln=alive(foeSide).reduce((s,f)=>s+(f.vuln||0),0);
       if(totalVuln>0){ shake(); for(const f of alive(foeSide)){ fxOn(f,'❄️'); await dealDamage(f, Math.round(f.maxHp*0.018*totalVuln), {}); } log(`　❄️ 冰霜 Nova！全場易傷共 ${totalVuln} 層、連鎖凍傷`,'sk'); }
       break; }
@@ -723,9 +723,9 @@ async function useSkill(u, ownSide, foeSide){
       buildStage(); fxOn(u,'🎁'); break; }
     case 'assassinate': for(let i=0;i<3;i++){ const fs=alive(foeSide); if(!fs.length)break; fs.sort((a,b)=>a.hp-b.hp); await basicAttack(u,[fs[i%fs.length]],0.85); await sleep(110);} break;   // 連擊掃 3 個不同敵人
     case 'corrode': { await basicAttack(u,foeSide,1); alive(foeSide).forEach(t=>{ t.poison=(t.poison||0)+3; t.poisonT=Math.max(t.poisonT||0,4); auraOn(t,'rgba(150,220,120,.5)'); fxOn(t,'☠️'); }); log(`　☠️ 蝕刻液濺到全場，全體中毒（持續疊層、會蔓延）`,'sk'); break; }
-    case 'hypnosis': alive(foeSide).forEach(f=>{ f.frozen=Math.max(f.frozen,2); f.vuln=(f.vuln||0)+1; f.vulnT=Math.max(f.vulnT||0,5); auraOn(f,'rgba(155,109,214,.6)'); fxOn(f,'🌀'); });   // ⛔閉環命脈：凍結 ≤3（frozen≥4 會讓再生王零傷下無限自癒＝不終止）。Math.max(f,2)＝凍 2 回合、安全。⛔ Max 鐵律：全場可疊易傷只 +1（別再寫 +2）；「易傷之王」靠 CD 短（=2）頻繁放疊量——8 隻小怪放一次＝全場 +8 層餵岱華 Nova。與岱華區隔：MAX=全場頻繁 +1、岱華=前 2 名 +3＋爆 Nova
+    case 'hypnosis': alive(foeSide).forEach(f=>{ f.frozen=Math.max(f.frozen,1); f.vuln=(f.vuln||0)+1; f.vulnT=Math.max(f.vulnT||0,5); auraOn(f,'rgba(155,109,214,.6)'); fxOn(f,'🌀'); });   // ⛔ Max 鐵律：凍 1＋易傷 +1＋治癒（cd=1 每 2 回合放）。凍 1 < 放招間隔 2 ＝必留 1 回合 gap、不永久凍結（這就是 cd 能=1 的原因；上個 session 堅持凍 2 才被迫 cd2）。閉環命脈 frozen≤3 仍守（這裡只 1）。全場可疊易傷靠頻繁放疊量餵岱華 Nova
       // Max 一次性全隊小自癒：療癒 8%（明顯低於孟弦主補 50%／欣芸再生 13%×4，不搶補師定位）
-      alive(ownSide).forEach(a=>{ const h=Math.round(a.maxHp*0.08); if(h>0 && a.hp<a.maxHp){ a.hp=Math.min(a.maxHp,a.hp+h); fxOn(a,'➕'); pop(a,'+'+h,'heal'); } }); log(`　🌀 全場催眠！全場罰站 2 回合＋易傷 +1（可疊），全隊回 8%`,'sk'); break;
+      alive(ownSide).forEach(a=>{ const h=Math.round(a.maxHp*0.08); if(h>0 && a.hp<a.maxHp){ a.hp=Math.min(a.maxHp,a.hp+h); fxOn(a,'➕'); pop(a,'+'+h,'heal'); } }); log(`　🌀 全場催眠！全場罰站 1 回合＋易傷 +1（可疊），全隊回 8%`,'sk'); break;
     case 'overclock': { const t=alive(foeSide).sort((a,b)=>b.maxHp-a.maxHp)[0]; if(t){ await basicAttack(u,[t],2.2); shake(true); if(t.alive){ const bonus=Math.round(t.maxHp*0.15); fxOn(t,'⚡'); await dealDamage(t, bonus, {big:true,crit:true}); } log(`　⚡ 超頻過載！鎖定最硬目標，爆發＋其最大血量 15%`,'sk'); } u.overheat=true; break; }   // 單體 anti-boss 核彈：鎖最高maxHp、×2.2＋敵maxHp 15%；與 splash(AoE)/detonate(引爆) 區隔
     case 'regen': alive(ownSide).forEach(a=>{ a.regen=Math.round(a.maxHp*0.13); a.regenT=4; auraOn(a,'rgba(94,200,160,.5)'); fxOn(a,'➕'); }); log(`　➕ 全隊再生（4 回合）`,'sk'); break;   // 8%→13%/回、3→4 回合（再生流續命）
     case 'armorbreak': { await basicAttack(u,foeSide,1.4);
