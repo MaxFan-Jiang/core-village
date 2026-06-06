@@ -338,17 +338,17 @@
 const SKILLS = {
   shield:     {name:"風險對沖", icon:"🛡️", desc:"全隊獲得護盾，吸收下一次傷害", kind:"util"},
   taunt:      {name:"挺身",     icon:"🦺", desc:"嘲諷所有敵人吸引火力到自己，獲得大護盾並大幅減傷", kind:"util"},
-  freeze:     {name:"罰站",     icon:"❄️", desc:"凍結一個敵人罰站 3 回合，使其易傷並大幅虛弱（削攻）", kind:"util"},
+  freeze:     {name:"罰站",     icon:"❄️", desc:"凍結攻擊最高的 2 個敵人罰站 3 回合並使其易傷，並放冰霜 Nova（隨全場易傷層數放大）轟全場", kind:"util"},
   assassinate:{name:"自動化連擊",icon:"🗡️", desc:"連擊最多 3 個敵人；爆擊疊『殺意』提升爆擊率，爆率滿後殺意轉攻擊力", kind:"atk"},
   dodge:      {name:"分鏡預判", icon:"🎯", desc:"全隊 3 回合內、每次受擊 50% 機率閃避", kind:"util"},
   heal:       {name:"散熱模組", icon:"💧", desc:"大幅治療血量最低的隊友，並小補全隊", kind:"util"},
   summon:     {name:"檔期促銷", icon:"🎁", desc:"召喚一個援軍小幫手", kind:"util"},
-  corrode:    {name:"蝕刻",     icon:"☠️", desc:"攻擊，並讓全體敵人中毒、小幅虛弱，可疊層", kind:"atk"},
+  corrode:    {name:"蝕刻",     icon:"☠️", desc:"攻擊，並讓全體敵人中毒，可疊層（中毒敵死亡會蔓延）", kind:"atk"},
   empower:    {name:"市場賦能", icon:"📈", desc:"全隊攻擊力提升（數回合）、爆擊率永久疊加", kind:"util"},
-  hypnosis:   {name:"全場催眠", icon:"🌀", desc:"凍結所有敵人 1 回合，使其易傷＋虛弱（全場削攻）", kind:"util"},
+  hypnosis:   {name:"全場催眠", icon:"🌀", desc:"凍結所有敵人 2 回合並疊易傷（易傷之王），順手小幅治療全隊", kind:"util"},
   overclock:  {name:"超頻",     icon:"⚡", desc:"鎖定最硬的敵人，爆發＋其最大血量 15%（專剋高血魔王）；下回合過熱", kind:"atk"},
   regen:      {name:"節能續航", icon:"➕", desc:"全隊獲得『再生』，4 回合內每回合回血", kind:"util"},
-  armorbreak: {name:"精密拆解", icon:"🔩", desc:"重擊一個敵人；殘血直接拆解（即死），越後期斬殺線越高、魔王門檻減半，否則疊 2 層易傷＋虛弱", kind:"atk"},
+  armorbreak: {name:"精密拆解", icon:"🔩", desc:"重擊一個敵人；殘血即死並以剩餘血量連鎖引爆（被砸進斬殺線者接續斬殺），否則疊 2 層易傷", kind:"atk"},
   splash:     {name:"擴散打擊", icon:"🌊", desc:"重擊主目標，傷害的一半濺射全體（隨你養爆擊一起放大）", kind:"atk"},
   detonate:   {name:"連鎖引爆", icon:"🧨", desc:"重擊主目標；若擊殺，以其最大血量 30% 引爆波及全體", kind:"atk"},
   armor:      {name:"披甲", icon:"🪖", desc:"全隊獲得相當於血量 60% 的護甲盾（按比例、後期不怕被穿）", kind:"util"},
@@ -529,13 +529,13 @@ function genWave(n){
 function bestWave(){ return parseInt(localStorage.getItem('xinjue-village-best')||'0',10)||0; }
 function setBest(w){ if(w>bestWave()) localStorage.setItem('xinjue-village-best',String(w)); }
 function mkFoe(f){ return {...f, side:'foe', maxHp:f.hp, hp:f.hp, atk:f.atk, baseAtk:f.atk,
-  crit:0.05, critDmg:1.6, bloodlust:0, poison:0, poisonT:0, frozen:0, vuln:0, vulnT:0, weak:0, weakT:0, regen:0, regenT:0, enrage:0,
+  crit:0.05, critDmg:1.6, bloodlust:0, poison:0, poisonT:0, frozen:0, vuln:0, vulnT:0, regen:0, regenT:0, enrage:0,
   shield:0, dodgeP:0, dodgeT:0, alive:true}; }
 
 let allies=[], foes=[], curWave=0, busy=false;
 /* roguelite 強化：打完魔王 3 選 1，效果累積整場 */
 let perks={}, runBoons=[]; const takenBoons=new Set();
-function resetPerks(){ perks={lifesteal:0,critChain:false,teamCrit:0,critDmg:0,atkMul:1,killHeal:0,poisonMul:0,vulnBonus:0,firstStrikeCrit:false,waveHeal:0,berserk:false,critRamp:false,weaken:false,dmgReduce:0,ironStacks:0,atkStacks:0}; }
+function resetPerks(){ perks={lifesteal:0,critChain:false,teamCrit:0,critDmg:0,atkMul:1,killHeal:0,poisonMul:0,vulnBonus:0,firstStrikeCrit:false,waveHeal:0,berserk:false,critRamp:false,dmgReduce:0,ironStacks:0,atkStacks:0}; }
 resetPerks();
 // 浴血：敵人倒下時全隊回血（隨擊殺放大，餵血甲消耗流）
 function killHeal(){ if(perks.killHeal<=0) return; const list=alive(allies); list.forEach(a=>{ a.hp=Math.min(a.maxHp,a.hp+Math.round(a.maxHp*perks.killHeal)); }); if(list[0]) pop(list[0],'🧛','heal'); }
@@ -614,7 +614,6 @@ function paint(u){
   if(u.dodgeP>0) b+=`<span class="badge">🎯${u.dodgeT}</span>`;
   if(u.poison>0) b+=`<span class="badge debuff">☠️${u.poison}</span>`;
   if(u.vuln>0) b+=`<span class="badge debuff">💢${u.vuln}</span>`;
-  if((u.weak||0)>0) b+=`<span class="badge debuff">😵${u.weak}</span>`;   // 虛弱層數（控場成效可視；ally 無 weak 欄→永不顯示）
   if(u.frozen>0) b+=`<span class="badge debuff">❄️${u.frozen}</span>`;
   if(u.overheat) b+=`<span class="badge debuff">🥵</span>`;
   if((u.enrage||0)>2) b+=`<span class="badge debuff">😡</span>`;
@@ -703,7 +702,11 @@ async function useSkill(u, ownSide, foeSide){
   switch(u.skill){
     case 'shield': alive(ownSide).forEach(a=>{a.shield+=26; auraOn(a,'rgba(94,200,224,.55)'); fxOn(a,'🛡️');}); break;
     case 'taunt': { u.taunt=3; u.shield+=Math.round(u.maxHp*0.5); auraOn(u,'rgba(110,135,184,.65)'); fxOn(u,'🦺'); pop(u,'嘲諷！','miss'); log(`　🦺 ${u.emoji} ${u.name} 挺身嘲諷，火力都往她身上、且傷害砍半`,'sk'); break; }
-    case 'freeze': { const fs=alive(foeSide); const tgt=fs.sort((a,b)=>b.atk-a.atk)[0]; if(tgt){tgt.frozen=3; tgt.vuln=(tgt.vuln||0)+1; tgt.vulnT=Math.max(tgt.vulnT||0,4); tgt.weak=(tgt.weak||0)+3; tgt.weakT=Math.max(tgt.weakT||0,4); auraOn(tgt,'rgba(120,180,255,.6)'); fxOn(tgt,'❄️'); pop(tgt,'❄️凍結','miss'); log(`　❄️ ${tgt.emoji} ${tgt.name} 被罰站 3 回合＋易傷＋大幅虛弱`,'sk');} break; }
+    case 'freeze': { const fs=alive(foeSide).sort((a,b)=>b.atk-a.atk); for(let i=0;i<Math.min(2,fs.length);i++){ const tgt=fs[i]; tgt.frozen=3; tgt.vuln=(tgt.vuln||0)+1; tgt.vulnT=Math.max(tgt.vulnT||0,4); auraOn(tgt,'rgba(120,180,255,.6)'); fxOn(tgt,'❄️'); pop(tgt,'❄️凍結','miss'); log(`　❄️ ${tgt.emoji} ${tgt.name} 被罰站 3 回合＋易傷`,'sk'); }   // 鎖 atk 前 2 名（凍結時長維持 3、frozen 必須 < cd 才保證有 gap，否則破閉環）
+      // 冰霜 Nova（岱華的對群解）：以全場易傷總層數放 AoE，疊越多易傷越痛，再吃各敵自身易傷加成（雙重 scaling）。0.012 為首版旋鈕、待 Max playtest
+      const totalVuln=alive(foeSide).reduce((s,f)=>s+(f.vuln||0),0);
+      if(totalVuln>0){ shake(); for(const f of alive(foeSide)){ fxOn(f,'❄️'); await dealDamage(f, Math.round(f.maxHp*0.012*totalVuln), {}); } log(`　❄️ 冰霜 Nova！全場易傷共 ${totalVuln} 層、連鎖凍傷`,'sk'); }
+      break; }
     case 'heal':   { const cand=alive(ownSide).filter(a=>a.id!=='helper'); const t=cand.sort((a,b)=>a.hp/a.maxHp-b.hp/b.maxHp)[0]; if(t){const h=Math.round(t.maxHp*0.5); t.hp=Math.min(t.maxHp,t.hp+h); auraOn(t,'rgba(74,208,125,.5)'); fxOn(t,'➕'); pop(t,'+'+h,'heal'); log(`　💧 治療 ${t.emoji} ${t.name} +${h}`,'he'); cand.forEach(a=>{ if(a!==t){ const hh=Math.round(a.maxHp*0.12); a.hp=Math.min(a.maxHp,a.hp+hh); if(hh>0){fxOn(a,'➕'); pop(a,'+'+hh,'heal');} } });} break; }   // 主補 50% + 全隊小補 12%（補師流續命引擎）
     case 'empower': alive(ownSide).forEach(a=>{a.rally=2; a.crit=Math.min(0.9,(a.crit||0)+0.22); auraOn(a,'rgba(201,169,110,.5)'); fxOn(a,'📈');}); log(`　📈 全隊 攻擊↑（數回合）、爆擊率永久↑`,'sk'); break;
     case 'dodge':  alive(ownSide).forEach(a=>{a.dodgeP=0.5; a.dodgeT=3; auraOn(a,'rgba(201,169,110,.55)'); fxOn(a,'🎯');}); log(`　🎯 全隊預判：3 回合內每次受擊 50% 機率閃避`,'sk'); break;
@@ -715,11 +718,19 @@ async function useSkill(u, ownSide, foeSide){
       } else { log(`　🎁 小幫手已經滿場了`,'he'); }
       buildStage(); fxOn(u,'🎁'); break; }
     case 'assassinate': for(let i=0;i<3;i++){ const fs=alive(foeSide); if(!fs.length)break; fs.sort((a,b)=>a.hp-b.hp); await basicAttack(u,[fs[i%fs.length]],0.85); await sleep(110);} break;   // 連擊掃 3 個不同敵人
-    case 'corrode': { await basicAttack(u,foeSide,1); alive(foeSide).forEach(t=>{ t.poison=(t.poison||0)+3; t.poisonT=Math.max(t.poisonT||0,4); t.weak=(t.weak||0)+1; t.weakT=Math.max(t.weakT||0,4); auraOn(t,'rgba(150,220,120,.5)'); fxOn(t,'☠️'); }); log(`　☠️ 蝕刻液濺到全場，全體中毒＋小幅虛弱（持續疊層）`,'sk'); break; }
-    case 'hypnosis': alive(foeSide).forEach(f=>{ f.frozen=Math.max(f.frozen,1); f.vuln=(f.vuln||0)+1; f.vulnT=3; f.weak=(f.weak||0)+3; f.weakT=Math.max(f.weakT||0,4); auraOn(f,'rgba(155,109,214,.6)'); fxOn(f,'🌀'); }); log(`　🌀 全場催眠！敵人罰站＋易傷＋虛弱`,'sk'); break;
+    case 'corrode': { await basicAttack(u,foeSide,1); alive(foeSide).forEach(t=>{ t.poison=(t.poison||0)+3; t.poisonT=Math.max(t.poisonT||0,4); auraOn(t,'rgba(150,220,120,.5)'); fxOn(t,'☠️'); }); log(`　☠️ 蝕刻液濺到全場，全體中毒（持續疊層、會蔓延）`,'sk'); break; }
+    case 'hypnosis': alive(foeSide).forEach(f=>{ f.frozen=Math.max(f.frozen,2); f.vuln=(f.vuln||0)+2; f.vulnT=Math.max(f.vulnT||0,5); auraOn(f,'rgba(155,109,214,.6)'); fxOn(f,'🌀'); });   // ⛔閉環命脈：凍結 ≤3（frozen≥4 會讓再生王零傷下無限自癒＝不終止）。Math.max(f,2)＝上限 2、安全。全場可疊易傷 +2＝Max 是「易傷之王」、餵岱華 Nova
+      // Max 一次性全隊小自癒：療癒 8%（明顯低於孟弦主補 50%／欣芸再生 13%×4，不搶補師定位）
+      alive(ownSide).forEach(a=>{ const h=Math.round(a.maxHp*0.08); if(h>0 && a.hp<a.maxHp){ a.hp=Math.min(a.maxHp,a.hp+h); fxOn(a,'➕'); pop(a,'+'+h,'heal'); } }); log(`　🌀 全場催眠！全場罰站 2 回合＋易傷，全隊回 8%`,'sk'); break;
     case 'overclock': { const t=alive(foeSide).sort((a,b)=>b.maxHp-a.maxHp)[0]; if(t){ await basicAttack(u,[t],2.2); shake(true); if(t.alive){ const bonus=Math.round(t.maxHp*0.15); fxOn(t,'⚡'); await dealDamage(t, bonus, {big:true,crit:true}); } log(`　⚡ 超頻過載！鎖定最硬目標，爆發＋其最大血量 15%`,'sk'); } u.overheat=true; break; }   // 單體 anti-boss 核彈：鎖最高maxHp、×2.2＋敵maxHp 15%；與 splash(AoE)/detonate(引爆) 區隔
     case 'regen': alive(ownSide).forEach(a=>{ a.regen=Math.round(a.maxHp*0.13); a.regenT=4; auraOn(a,'rgba(94,200,160,.5)'); fxOn(a,'➕'); }); log(`　➕ 全隊再生（4 回合）`,'sk'); break;   // 8%→13%/回、3→4 回合（再生流續命）
-    case 'armorbreak': { const t=lowestHp(foeSide); await basicAttack(u,foeSide,1.4); if(t&&t.alive){ const exThr=Math.min(0.40,0.18+0.006*curWave); const thr=(t.emoji==='👾')?exThr*0.5:exThr; if(t.hp < t.maxHp*thr){ t.hp=0; t.alive=false; impactFx(t,'💥'); pop(t,'拆解！','crit'); sfx('ko'); log(`　🔩 ${t.emoji} ${t.name} 被精密拆解（即死）`,'sk'); if(t.side==='foe'){ killHeal(); spreadPoison(t); } } else { t.vuln=(t.vuln||0)+2; t.vulnT=Math.max(t.vulnT||0,4); t.weak=(t.weak||0)+2; t.weakT=Math.max(t.weakT||0,4); auraOn(t,'rgba(138,143,158,.6)'); fxOn(t,'🔩'); log(`　🔩 ${t.emoji} ${t.name} 易傷×${t.vuln}＋虛弱`,'sk'); } } break; }   // 斬殺線隨波↑(18%→40%)、魔王門檻減半→越後期越能斬boss；否則疊易傷
+    case 'armorbreak': { await basicAttack(u,foeSide,1.4);
+      const exThrOf=(f)=>{ const e=Math.min(0.40,0.18+0.006*curWave); return (f.emoji==='👾')?e*0.5:e; };   // 斬殺線隨波↑(18%→40%)、魔王門檻減半
+      let chain=0;
+      while(chain<12){ const v=alive(foeSide).find(f=>f.hp>0 && f.hp < f.maxHp*exThrOf(f)); if(!v) break; const rem=Math.max(0,Math.round(v.hp)); v.hp=0; v.alive=false; impactFx(v,'💥'); pop(v,'拆解！','crit'); sfx('ko'); if(v.side==='foe'){ killHeal(); spreadPoison(v); } for(const o of alive(foeSide)){ fxOn(o,'🔩'); await dealDamage(o, rem, {big:true}); } chain++; }   // 連鎖斬殺：殘血即死 → 以「剩餘血量」AoE 砸全場 → 被打進斬殺線者接著斬 → 連鎖（cap 12 防爆）
+      if(chain>0){ shake(true); log(`　🔩 精密拆解連鎖！連環斬殺 ${chain} 隻`,'sk'); }
+      else { const t=lowestHp(foeSide); if(t){ t.vuln=(t.vuln||0)+2; t.vulnT=Math.max(t.vulnT||0,4); auraOn(t,'rgba(138,143,158,.6)'); fxOn(t,'🔩'); log(`　🔩 ${t.emoji} ${t.name} 易傷×${t.vuln}`,'sk'); } }
+      break; }
     case 'splash': { const main=lowestHp(foeSide); const dealt=await basicAttack(u,foeSide,1.8); if(dealt>0){ for(const f of alive(foeSide)){ if(f===main)continue; fxOn(f,'🌊'); await dealDamage(f, Math.round(dealt*0.5), {}); } } log(`　🌊 濺射！主擊一半波及全場`,'sk'); break; }   // 擴散：主擊傷害50%濺全體、隨爆擊放大
     case 'detonate': { const main=lowestHp(foeSide); await basicAttack(u,foeSide,1.5); if(main && !main.alive){ const boom=Math.round(main.maxHp*0.3); shake(true); for(const f of alive(foeSide)){ fxOn(f,'🧨'); await dealDamage(f, boom, {big:true}); } log(`　🧨 ${main.emoji} 被引爆，殘骸衝擊波炸全場`,'sk'); } break; }   // 引爆：擊殺則以該敵 maxHp 30% AoE
     case 'armor': alive(ownSide).forEach(a=>{ const s=Math.round(a.maxHp*0.6); a.shield+=s; auraOn(a,'rgba(110,135,184,.55)'); fxOn(a,'🪖'); }); log(`　🪖 全隊披上相當於 60% 血量的護甲盾`,'sk'); break;   // %護甲：盾=maxHp 60%（隨血縮放、不怕後期被穿）
@@ -739,8 +750,13 @@ async function tickFrozen(u){
 // 回合結束：全場狀態一次結算（持續時間以「回合」計、與速度順序脫鉤，所見即所得）
 async function endOfRound(){
   let any=false;
+  // 控場自補④：場上有敵被凍＝「控場生效中」→回合末全隊回 7% maxHp（沒補師槽的續命；控被打斷就斷奶）。
+  // 固定 7%／回（不隨波長大），下行 enrage 線性無上限終究超越 → 不破閉環（sim 復現 Max w11；推薦配置 immortal=0、控場四人組 survival 中位 ~21）。
+  // 旋鈕：嫌弱→8-10%；嫌中位太高→回 5-6%（每 +1% 約 +1 波中位）。0.50 壓力測試仍 imm=0（平均灑的回血救不了被隨機集火打穿的脆皮）。
+  const ctrlActive = alive(foes).some(f=>f.frozen>0);
   for(const u of [...allies, ...foes]){
     if(!u.alive) continue;
+    if(ctrlActive && u.side==='ally' && u.hp<u.maxHp){ const h=Math.round(u.maxHp*0.07); if(h>0){ u.hp=Math.min(u.maxHp,u.hp+h); fxOn(u,'➕'); pop(u,'+'+h,'heal'); any=true; } }
     // 再生王 niche：止血式自癒（吃已失血量的%、越受傷回越多）。此塊在毒 tic 之前 → (u.poison||0)<=0 讀的是「本回合身上還有沒有毒」(毒層數要到下面毒 tic 用盡才 --)，故中毒＝自癒整段跳過＝完全失效（不是減量）。凍結不檢查＝被凍/被催眠的王照樣自癒（控制是 niche#3 的活，再生王只逼毒）；但若被凍則自癒砍半，保證任何 CC 組合都無法讓自癒王完全打不死（終止安全網）
     if((u.selfHeal||0)>0 && u.side==='foe'){
       if((u.poison||0)<=0){
@@ -755,7 +771,6 @@ async function endOfRound(){
       if(u.hp<=0){ u.hp=0; u.alive=false; sfx('ko'); log(`　💀 ${u.emoji} ${u.name} 毒發身亡`,'ko'); if(u.side==='foe'){ killHeal(); spreadPoison(u); } }
     }
     if(u.vuln>0 && u.vulnT>0){ u.vulnT--; if(u.vulnT<=0){ u.vuln=Math.max(0,u.vuln-1); if(u.vuln>0)u.vulnT=2; } }
-    if(u.weak>0 && u.weakT>0){ u.weakT--; if(u.weakT<=0){ u.weak=Math.max(0,u.weak-1); if(u.weak>0)u.weakT=2; } }   // 虛弱衰減（仿易傷、每2回合掉1層）：控非持續來源殘留；閉環不靠它（靠 floor+enrage）
     if(u.frozen>0) u.frozen--;
     if(u.dodgeT>0){ u.dodgeT--; if(u.dodgeT<=0)u.dodgeP=0; }
     if(u.side==='foe') u.enrage=(u.enrage||0)+1;   // 激怒：一波拖越久、怪攻擊越高（破龜縮 DPS check）
@@ -787,11 +802,8 @@ async function enemyTurn(u){
   const t=taunters.length?taunters[0]:rand(allies);   // 有人嘲諷就打他（否則隨機）；嘲諷的價值＝把火力從後排硬拉到坦身上
   log(`${u.emoji} ${u.name} 攻擊 ${t.emoji} ${t.name}`,'dm');
   lungeFx(u); await sleep(165);
-  const wFloor=Math.max(0.30, perks.weaken?0.40:0.45);   // 虛弱地板（敵 atk 最低剩比例）：baseline 0.45 / 積弱 boon 0.40；Math.max(0.30,…) 硬底安全閥，防手調進不死區（floor=0 才會破閉環）
-  const wPer=0.06+(perks.weaken?0.015:0);   // 每層削敵 atk：baseline -6% / 積弱 boon -7.5%
-  const weak=Math.max(wFloor, 1 - wPer*(u.weak||0));   // 虛弱：獨立可疊、baseline 生效（脫鉤 vuln、解除 boon-gate）；floor 是固定乘數，下行 enrage 線性無上限乘在最後＝閉環 carry
   const rage=1+Math.max(0,(u.enrage||0)-2)*0.12;   // 激怒：第 4 回合起每回合 +12% 攻擊（清不掉就被輾＝逼你有輸出）
-  await dealDamage(t, u.atk*weak*rage*(0.9+Math.random()*0.25));
+  await dealDamage(t, u.atk*rage*(0.9+Math.random()*0.25));
   await sleep(330);
 }
 
@@ -810,7 +822,6 @@ const BOONS=[
   {id:'rest',      icon:'➕', name:'休整',     desc:'每波開始多回 18% 血量',         tags:['regen','heal'], apply:()=>perks.waveHeal+=0.18},
   {id:'berserk',   icon:'🔥', name:'狂戰',     desc:'血量越低攻擊越高（最多 +40%）', tags:['overclock','armorbreak'], once:true, apply:()=>perks.berserk=true},
   {id:'ramp',      icon:'🔺', name:'連環殺意', desc:'每次爆擊全隊爆擊率永久 +2%',     tags:['assassinate'], once:true, apply:()=>perks.critRamp=true},
-  {id:'weaken',    icon:'😵', name:'積弱',     desc:'虛弱再強化：每層削得更深、攻擊力地板更低', tags:['armorbreak','hypnosis','freeze'], once:true, apply:()=>perks.weaken=true},
   {id:'bulwark',   icon:'🧱', name:'銅牆',     desc:'全隊受傷 -12%（上限 -48%）；封頂後改全隊 攻+5 / 血+5% / 速+1', tags:['taunt','armor','shield','regen','heal'], apply:()=>{ if((perks.dmgReduce||0)<0.48){ perks.dmgReduce=Math.min(0.48,(perks.dmgReduce||0)+0.12); } else { alive(allies).forEach(a=>{ a.atk+=5; a.baseAtk+=5; const hb=Math.round(a.maxHp*0.05); a.maxHp+=hb; a.hp+=hb; a.spd+=1; }); } }},
 ];
 function pickBoons(){
