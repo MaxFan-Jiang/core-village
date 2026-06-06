@@ -340,7 +340,7 @@ const SKILLS = {
   taunt:      {name:"挺身",     icon:"🦺", desc:"嘲諷所有敵人吸引火力到自己，獲得大護盾並大幅減傷", kind:"util"},
   freeze:     {name:"罰站",     icon:"❄️", desc:"凍結一個敵人罰站 3 回合，並使其易傷", kind:"util"},
   assassinate:{name:"自動化連擊",icon:"🗡️", desc:"連擊最多 3 個敵人；爆擊疊『殺意』提升爆擊率，爆率滿後殺意轉攻擊力", kind:"atk"},
-  dodge:      {name:"分鏡預判", icon:"🎯", desc:"全隊各自閃避下一次攻擊", kind:"util"},
+  dodge:      {name:"分鏡預判", icon:"🎯", desc:"全隊 3 回合內、每次受擊 50% 機率閃避", kind:"util"},
   heal:       {name:"散熱模組", icon:"💧", desc:"大幅治療血量最低的隊友，並小補全隊", kind:"util"},
   summon:     {name:"檔期促銷", icon:"🎁", desc:"召喚一個援軍小幫手", kind:"util"},
   corrode:    {name:"蝕刻",     icon:"☠️", desc:"攻擊，並讓全體敵人中毒＋易傷，可疊層", kind:"atk"},
@@ -527,7 +527,7 @@ function genWave(n){
 function bestWave(){ return parseInt(localStorage.getItem('xinjue-village-best')||'0',10)||0; }
 function setBest(w){ if(w>bestWave()) localStorage.setItem('xinjue-village-best',String(w)); }
 function mkFoe(f){ return {...f, side:'foe', maxHp:f.hp, hp:f.hp, atk:f.atk, baseAtk:f.atk,
-  crit:0.05, critDmg:1.6, bloodlust:0, poison:0, poisonT:0, frozen:0, vuln:0, vulnT:0, regen:0, regenT:0,
+  crit:0.05, critDmg:1.6, bloodlust:0, poison:0, poisonT:0, frozen:0, vuln:0, vulnT:0, regen:0, regenT:0, enrage:0,
   shield:0, dodgeP:0, dodgeT:0, alive:true}; }
 
 let allies=[], foes=[], curWave=0, busy=false;
@@ -607,6 +607,7 @@ function paint(u){
   if(perks.weaken && u.vuln>0 && (u.poison>0||u.frozen>0)) b+=`<span class="badge debuff">😵</span>`;
   if(u.frozen>0) b+=`<span class="badge debuff">❄️${u.frozen}</span>`;
   if(u.overheat) b+=`<span class="badge debuff">🥵</span>`;
+  if((u.enrage||0)>2) b+=`<span class="badge debuff">😡</span>`;
   u.el.querySelector('.badges').innerHTML=b;
 }
 function paintAll(){ allies.forEach(paint); foes.forEach(paint); }
@@ -737,8 +738,10 @@ async function endOfRound(){
     if(u.vuln>0 && u.vulnT>0){ u.vulnT--; if(u.vulnT<=0){ u.vuln=Math.max(0,u.vuln-1); if(u.vuln>0)u.vulnT=2; } }
     if(u.frozen>0) u.frozen--;
     if(u.dodgeT>0){ u.dodgeT--; if(u.dodgeT<=0)u.dodgeP=0; }
+    if(u.side==='foe') u.enrage=(u.enrage||0)+1;   // 激怒：一波拖越久、怪攻擊越高（破龜縮 DPS check）
     if(u.side==='ally'){ if(u.rally>0){ u.rally--; if(u.rally===0)pop(u,'攻↑結束','miss'); } if(u.taunt>0)u.taunt--; }
   }
+  if(foes.some(f=>f.alive && (f.enrage||0)===3)) log('　😡 敵人激怒了！清場太慢會被越打越痛，加快輸出',' dm');
   paintAll(); if(any){ sfx('poison'); await sleep(280); }
 }
 async function takeTurn(u, ownSide, foeSide){
@@ -765,7 +768,8 @@ async function enemyTurn(u){
   log(`${u.emoji} ${u.name} 攻擊 ${t.emoji} ${t.name}`,'dm');
   lungeFx(u); await sleep(165);
   const weak=(perks.weaken && u.vuln>0 && (u.poison>0||u.frozen>0))?Math.max(0.4,1-0.08*u.vuln):1;   // 虛弱(boon 解鎖)：易傷+任一減益的敵人攻擊力 -8%/層（最多 -60%）
-  await dealDamage(t, u.atk*weak*(0.9+Math.random()*0.25));
+  const rage=1+Math.max(0,(u.enrage||0)-2)*0.12;   // 激怒：第 4 回合起每回合 +12% 攻擊（清不掉就被輾＝逼你有輸出）
+  await dealDamage(t, u.atk*weak*rage*(0.9+Math.random()*0.25));
   await sleep(330);
 }
 
