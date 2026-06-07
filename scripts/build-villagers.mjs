@@ -45,13 +45,21 @@ const seenIds = new Set();
 
 function fail(file, msg) { errors.push(`  ✗ ${file}：${msg}`); }
 
-let files;
+let entries;
 try {
-  files = readdirSync(VILLAGERS_DIR).filter(f => f.endsWith(".json") && !f.startsWith("_"));
+  entries = readdirSync(VILLAGERS_DIR, { withFileTypes: true });
 } catch (e) {
   console.error(`找不到 villagers/ 資料夾（${VILLAGERS_DIR}）。`);
   process.exit(1);
 }
+// 抓「看起來是村民卡、卻忘了 .json 副檔名」的檔案：給清楚的中文錯誤。否則它們會被靜默略過＝CI 假綠燈、
+// 卡片卻永遠不出現（夥伴最常見的坑：在 GitHub 網頁建檔時漏打副檔名）。排除 _ 範本與 . 開頭的隱藏檔。
+for (const d of entries) {
+  if (d.isFile() && !d.name.endsWith(".json") && !d.name.startsWith("_") && !d.name.startsWith(".")) {
+    fail(d.name, `檔名少了 .json 副檔名，引擎會直接忽略它。請改名成 "${d.name}.json"（全小寫英文／數字／減號，例如 villagers/my-handle.json）。`);
+  }
+}
+const files = entries.filter(d => d.isFile() && d.name.endsWith(".json") && !d.name.startsWith("_")).map(d => d.name);
 files.sort();
 
 for (const file of files) {
