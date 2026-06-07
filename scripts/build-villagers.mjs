@@ -17,7 +17,7 @@ const VILLAGERS_DIR = join(root, "villagers");
 const OUT = join(root, "villagers.generated.js");
 const CHECK_ONLY = process.argv.includes("--check");
 
-// 技能選單：必須是這 16 個之一。"custom"（自寫技能碼）為了安全 v1 先不開放——
+// 技能選單：必須是下面 SKILLS 白名單裡的其中一個。"custom"（自寫技能碼）為了安全 v1 先不開放——
 // 在每位玩家瀏覽器執行 PR 帶進來的任意程式碼 = 重大資安風險，要走 code review 直接併進引擎。
 const SKILLS = new Set([
   "shield","taunt","freeze","assassinate","dodge","heal","summon",
@@ -33,7 +33,7 @@ const LIMITS = {
 };
 const LEN = { name: 24, job: 48, cry: 80, emoji: 8, story: 120, join: 60 };
 // ⚠️ 資安不變式：前端 index.html 把 id 與 skill **原樣**插進 innerHTML（id 進 data-id/元素 id/選擇器、
-//    skill 當 SKILLS[] 的 key），不另外轉義。所以「id 只允許 [a-z0-9-]」「skill 只允許這 12 個」
+//    skill 當 SKILLS[] 的 key），不另外轉義。所以「id 只允許 [a-z0-9-]」「skill 只允許白名單內」
 //    這兩條 allowlist 就是 id/skill 的唯一 XSS 防線——放寬它們前，務必先在前端 esc() 補上對應轉義。
 const ID_RE = /^[a-z0-9][a-z0-9-]{1,23}$/;
 // name/job/cry/emoji 這類自由字串不准夾帶 HTML 標記（前端另有 esc() 第二層防線）
