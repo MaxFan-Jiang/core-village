@@ -899,13 +899,10 @@ async function runBattle(){
       // 回合結束：全場狀態統一結算（毒/再生/易傷/凍結倒數/rally/taunt 一次跳完）
       await endOfRound();
     }
-    // 😈 frenzy 清場復活：foes 全滅（含同歸於盡）→ 全隊死者滿血復活（在判負檢查前、同歸於盡會被救回續戰）。⏳ 診斷期：每次清場都印判定，看機制有沒有觸發
-    if(frenzyActive && alive(foes).length===0){
-      const _rounds = roundN - _waveStartRound;
+    // 😈 frenzy 清場復活：foes 全滅（含同歸於盡）且 ≤N 回合 → 全隊死者滿血復活（在判負檢查前、同歸於盡會被救回續戰）。窗口 10 ＝反龜甲閘（賭輸則 10 回合內早被清光、摸不到復活；賭贏快速清場才換到容錯）
+    if(frenzyActive && alive(foes).length===0 && (roundN - _waveStartRound) <= FRENZY_REVIVE_ROUNDS){
       const _dead = allies.filter(a=>!a.alive && a.id!=='helper');
-      const _go = _rounds <= FRENZY_REVIVE_ROUNDS && _dead.length>0;
-      log(`　😈 [復活判定] 本波 ${_rounds} 回合清場・陣亡 ${_dead.length} 人・窗口 ≤${FRENZY_REVIVE_ROUNDS} → ${_go?'✅觸發復活':(_dead.length===0?'無人陣亡(不需)':'⚠️超過窗口')}`,'sk');
-      if(_go){ _dead.forEach(a=>{ a.alive=true; a.hp=a.maxHp; a.shield=0; a.frozen=0; a.poison=0; a.poisonT=0; auraOn(a,'rgba(224,112,79,.7)'); fxOn(a,'😈'); pop(a,'復活！','heal'); }); shake(true); sfx('heal'); log(`　😈 ${_rounds} 回合清場！${_dead.length} 名隊友滿血復活`,'sk'); buildStage(); }
+      if(_dead.length){ _dead.forEach(a=>{ a.alive=true; a.hp=a.maxHp; a.shield=0; a.frozen=0; a.poison=0; a.poisonT=0; auraOn(a,'rgba(224,112,79,.7)'); fxOn(a,'😈'); pop(a,'復活！','heal'); }); shake(true); sfx('heal'); log(`　😈 ${roundN-_waveStartRound} 回合清場！${_dead.length} 名隊友滿血復活`,'sk'); buildStage(); }
     }
     if(alive(allies).length===0){ return endBattle(curWave-1); }
     sfx('wave'); log(`<span class="win">✦ 第 ${curWave} 波清空！</span>`);
