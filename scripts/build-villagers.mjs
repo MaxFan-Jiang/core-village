@@ -22,7 +22,7 @@ const CHECK_ONLY = process.argv.includes("--check");
 const SKILLS = new Set([
   "shield","taunt","freeze","assassinate","dodge","heal","summon",
   "corrode","empower","hypnosis","overclock","regen","armorbreak",
-  "splash","detonate","armor",
+  "splash","detonate","armor","frenzy",
 ]);
 
 const LIMITS = {
