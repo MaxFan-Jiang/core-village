@@ -19,7 +19,7 @@ villagers/<id>.json   ──►  scripts/build-villagers.mjs  ──►  village
    one PR per person
 ```
 
-- A contributor adds **one JSON file** describing their character. That's the entire contribution surface.
+- The beginner on-ramp is **one JSON file** describing a character — no build step, no local tooling. (Advanced contributors can also fork and improve the engine itself via PR; see §3.)
 - The build script is the **single source of truth for what is allowed**. It runs in two modes:
   - `--check` (CI, on every PR): validate only, emit human-readable errors, fail red on any violation.
   - default (CI, on merge to `main`): re-aggregate every card into `villagers.generated.js`, which the engine loads.
@@ -51,13 +51,14 @@ Custom skills (contributor-authored behaviour) are deliberately **not** open: th
 
 ## 3. CI/CD
 
-Three GitHub Actions workflows, each with one job:
+Two GitHub Actions workflows:
 
 - **Validate (`validate.yml`)** — runs the build script in `--check` on every PR. Green = mergeable; red = the contributor gets specific, friendly error messages (in their language) telling them exactly which field to fix.
-- **Scope guard (`pr-scope.yml`)** — a PR may only touch `villagers/`. Anything that reaches into the engine, CI, or config fails. This is both a security boundary (a malicious PR can't sneak an engine edit past review) and a clean separation between *authored code* and *contributed data*.
 - **Build & deploy (`deploy.yml`)** — on merge to `main`, re-aggregate all cards and publish to GitHub Pages. A merged character is live within minutes.
 
-First-time fork contributors are gated by GitHub's "require approval to run workflows" by default — the maintainer approves the run, then the validation/scope checks execute.
+First-time fork contributors are gated by GitHub's "require approval to run workflows" by default — the maintainer approves the run, then validation executes.
+
+**Two contribution tiers.** *Character cards* (data under `villagers/`) are auto-validated and merge fast — the low-floor on-ramp. *Engine and gameplay improvements* are equally welcome: fork, build, open a PR, and the maintainer reviews and merges after preview. Because engine code runs in every player's browser, those PRs get careful human review — that review **is** the security gate for code, just as the build-time allowlist is the gate for data. The `v1.0-solo` tag marks the solo-built foundation; every change after it is attributed to its author in git history.
 
 ---
 
