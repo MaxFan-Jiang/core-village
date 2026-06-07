@@ -1,0 +1,42 @@
+name: 標記引擎相關 PR
+
+# 非阻擋提示：PR 若動到 villagers/ 以外（引擎／CI／設定），自動貼上 engine-change 標籤，
+# 提醒維護者「這張要仔細 review，別當角色卡秒批」——因為引擎程式會在每位玩家瀏覽器裡跑。
+# ⛔ 不擋、不影響參與；進階優化 PR 一樣歡迎（見 CONTRIBUTING『進階』）。
+#
+# 用 pull_request_target 才有權限替 fork PR 貼標籤；本 workflow **只讀檔案清單、加標籤、
+# 不 checkout 也不執行 PR 任何程式碼**，故不受 pull_request_target 的典型風險影響。
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+            });
+            const touchesEngine = files.some(f => !f.filename.startsWith('villagers/'));
+            if (!touchesEngine) return;
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                labels: ['engine-change'],
+              });
+              core.notice('此 PR 動到 villagers/ 以外，已標記 engine-change，請仔細 review。');
+            } catch (e) {
+              core.warning('貼 engine-change 標籤失敗（非阻擋）：' + e.message);
+            }

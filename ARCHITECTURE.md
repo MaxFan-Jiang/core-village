@@ -58,7 +58,7 @@ Two GitHub Actions workflows:
 
 First-time fork contributors are gated by GitHub's "require approval to run workflows" by default — the maintainer approves the run, then validation executes.
 
-**Two contribution tiers.** *Character cards* (data under `villagers/`) are auto-validated and merge fast — the low-floor on-ramp. *Engine and gameplay improvements* are equally welcome: fork, build, open a PR, and the maintainer reviews and merges after preview. Because engine code runs in every player's browser, those PRs get careful human review — that review **is** the security gate for code, just as the build-time allowlist is the gate for data. The `v1.0-solo` tag marks the solo-built foundation; every change after it is attributed to its author in git history.
+**Two contribution tiers.** *Character cards* (data under `villagers/`) are auto-validated and merge fast — the low-floor on-ramp. *Engine and gameplay improvements* are equally welcome: fork, build, open a PR, and the maintainer reviews and merges after preview. Because engine code runs in every player's browser, those PRs get careful human review — that review **is** the security gate for code, just as the build-time allowlist is the gate for data. The engine and pipeline were built solo before community contributions began, and every change is attributed to its author in git history.
 
 ---
 
