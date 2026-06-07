@@ -1,0 +1,34 @@
+name: 限制 PR 修改範圍
+
+# 夥伴的 PR 只能新增／修改 villagers/ 底下自己的角色卡（之後含圖片素材）。
+# 碰到引擎／CI／設定就紅燈——既是資安護欄（防惡意 PR 偷改在大家瀏覽器跑的引擎），
+# 也讓「作者的程式 vs 夥伴的資料」界線清楚。引擎變更由維護者直接推 main、不走 PR。
+on:
+  pull_request:
+
+jobs:
+  scope:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 檢查只動 villagers/
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          CHANGED=$(git diff --name-only "$BASE...$HEAD")
+          echo "本 PR 變更的檔案："
+          echo "$CHANGED" | sed 's/^/  /'
+          BAD=$(echo "$CHANGED" | grep -v '^villagers/' || true)
+          if [ -n "$BAD" ]; then
+            echo ""
+            echo "❌ 這個 PR 改到了 villagers/ 以外的檔案："
+            echo "$BAD" | sed 's/^/  - /'
+            echo ""
+            echo "夥伴的 PR 只能新增／修改自己的角色卡：villagers/<你的代號>.json（之後含圖片素材）。"
+            echo "引擎／CI／設定的修改，請先開 issue 跟維護者討論。"
+            exit 1
+          fi
+          echo ""
+          echo "✓ 只動了 villagers/，範圍正確。"

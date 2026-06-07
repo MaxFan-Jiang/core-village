@@ -1,0 +1,4 @@
+# 所有程式碼、build pipeline、CI、安全模型由作者維護。
+# 夥伴的貢獻只在 villagers/ 底下的「資料」（角色卡），由 CI 驗證、見 CONTRIBUTING.md。
+# （此檔同時宣告：引擎是作者的作品，夥伴提供的是資料——see ARCHITECTURE.md。）
+* @MaxFan-Jiang
