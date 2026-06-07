@@ -952,7 +952,7 @@ $('#backBtn').addEventListener('click',()=>{
   showScreen('village');
 });
 $('#speedTag').addEventListener('click',()=>{
-  SPEED = SPEED===1?2:(SPEED===2?4:1);
+  SPEED = SPEED===1?2:(SPEED===2?4:(SPEED===4?5:1));   // 1→2→4→5→1（加入 5 倍速）
   $('#speedTag').textContent=`⏩ 速度 x${SPEED}`;
 });
 
