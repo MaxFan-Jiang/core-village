@@ -803,7 +803,7 @@ async function takeTurn(u, ownSide, foeSide){
   if(alive(foeSide).length===0) return;
   if(u.overheat){ u.overheat=false; pop(u,'過熱','miss'); log(`　🥵 ${u.emoji} ${u.name} 過熱，這回合休息`); paintAll(); await sleep(420); return; }
   actFx(u);
-  if(u.skill && u.cdLeft<=0){ u.cdLeft=u.cd; await useSkill(u, ownSide, foeSide); }
+  if(u.skill && u.skill!=='frenzy' && u.cdLeft<=0){ u.cdLeft=u.cd; await useSkill(u, ownSide, foeSide); }   // 😈 frenzy＝被動靈氣，黑化MAX 不放招、只普攻（靈氣在 runBattle 開場就常駐）
   else { if(u.cdLeft>0)u.cdLeft--; await basicAttack(u, foeSide, 1); }
   // decay rally
   if(u.rally>0 && u.side==='ally'){ /* decremented per round below */ }
@@ -820,7 +820,7 @@ async function enemyTurn(u){
   log(`${u.emoji} ${u.name} 攻擊 ${t.emoji} ${t.name}`,'dm');
   lungeFx(u); await sleep(165);
   const rage=1+Math.max(0,(u.enrage||0)-2)*0.12;   // 激怒：第 4 回合起每回合 +12% 攻擊（清不掉就被輾＝逼你有輸出）
-  await dealDamage(t, u.atk*rage*(0.9+Math.random()*0.25));
+  await dealDamage(t, u.atk*rage*(0.9+Math.random()*0.25)*(frenzyActive?2:1));   // 😈 frenzy：敵人攻擊也×2（敵我不分；enemyTurn 不走 basicAttack 故在此補上）
   await sleep(330);
 }
 
@@ -877,6 +877,8 @@ function offerBoons(heading){
 let roundN=0;
 async function runBattle(){
   busy=true; $('#result').className='result';
+  frenzyActive = allies.some(a=>a.skill==='frenzy');   // 😈 黑化MAX 在隊＝永久狂暴靈氣：被動，從第 1 波就生效、不需放招、與他自己生死無關（修「他先死→frenzy 沒啟動→沒復活」）
+  if(frenzyActive){ tintFlash('rgba(224,112,79,.5)'); log(`　💢 <b>黑化MAX</b> 在場——全場永久狂暴：敵我攻擊×2；${FRENZY_REVIVE_ROUNDS} 回合內清場＝全隊滿血復活`,'sk'); }
   await offerBoons('🚩 出發前，先選一個強化');   // 開場強化（每場保底先選一個）
   while(alive(allies).length>0){
     curWave++;
