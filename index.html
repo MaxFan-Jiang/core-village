@@ -570,12 +570,18 @@ const BASEPAL={'.':null,'O':'#181226','H':'#5a3a2a','S':'#f3cda0','W':'#ffffff',
 function darken(hex,f){ const n=parseInt(hex.slice(1),16); const r=Math.round(((n>>16)&255)*f),g=Math.round(((n>>8)&255)*f),b=Math.round((n&255)*f); return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1); }
 const SKILLCOL={shield:'#5e8fc8',taunt:'#6b87b8',freeze:'#79b6e0',assassinate:'#6f8fb5',dodge:'#e89ac0',heal:'#6abf8a',summon:'#e0a060',corrode:'#8bbf5a',empower:'#C9A96E',hypnosis:'#9b6dd6',overclock:'#e0704f',regen:'#5ec8a0',armorbreak:'#8a8f9e',splash:'#5ec8e0',detonate:'#e0704f',armor:'#6b87b8',frenzy:'#161616'};
 const DARK_MAX_OV={B:'#161616',b:'#000000',H:'#0c0c0c',S:'#363636',F:'#000000',W:'#d23b3b'};   // 😈 黑化MAX：原 hero 模型「全黑」調色盤（衣/髮/膚/腳全暗，紅眼透出瘋意）
+// 載入自訂像素 sprite（村民 JSON 裡的 sprite.grid + sprite.colors）
+(window.__VILLAGERS__||[]).forEach(v=>{
+  if(v.sprite&&Array.isArray(v.sprite.grid)) SPRITES['_c_'+v.id]=v.sprite.grid;
+});
 function unitSprite(u){
   if(u.side==='foe'){
     const c=u.emoji==='🦠'?'#8ad08a':u.emoji==='💧'?'#5ec8e0':u.emoji==='👾'?'#c98ad0':u.emoji==='❌'?'#ff6d7a':u.emoji==='🛡️'?'#9aa3b5':u.emoji==='🩸'?'#e06a7a':'#9ed06a';
     return {name:'bug', ov:{g:c, d:darken(c,0.6)}};
   }
   if(u.id==='helper') return {name:'chick', ov:{}};
+  // 自訂像素 sprite 優先
+  if(SPRITES['_c_'+u.id]){ const src=(window.__VILLAGERS__||[]).find(v=>v.id===u.id); return {name:'_c_'+u.id, ov:(src&&src.sprite&&src.sprite.colors)||{}}; }
   if(u.skill==='frenzy') return {name:'hero', ov:DARK_MAX_OV};   // 😈 黑化MAX：原 hero 模型全黑
   const c=SKILLCOL[u.skill]||'#C9A96E';
   return {name:'hero', ov:{B:c, b:darken(c,0.62)}};
@@ -1024,7 +1030,10 @@ function buildTownBg(){
   townBg=bg;
 }
 function buildTownSprites(){
-  TOWN_NPCS.forEach(n=>{ const col=SKILLCOL[n.v.skill]||'#C9A96E'; n.spr=spriteEl('hero',24, n.v.skill==='frenzy'?DARK_MAX_OV:{B:col,b:darken(col,0.62)}); });   // 😈 黑化MAX 村莊走動也全黑
+  TOWN_NPCS.forEach(n=>{
+    const sp=unitSprite(n.v);  // 自訂 sprite / 黑化MAX / 技能配色，統一走 unitSprite
+    n.spr=spriteEl(sp.name,24,sp.ov);
+  });
   playerSpr=spriteEl('hero',24,{B:'#5ec8e0',b:'#2f7e96',S:'#f3cda0'});
 }
 function drawTree(x,cx,fy){ x.fillStyle='#5a3d22'; x.fillRect(cx-2,fy-9,4,9); x.fillStyle='#2c7a37'; x.fillRect(cx-10,fy-24,20,16); x.fillStyle='#379a45'; x.fillRect(cx-8,fy-27,16,9); x.fillStyle='#1f5c28'; x.fillRect(cx-10,fy-12,20,4); }
@@ -1083,10 +1092,10 @@ function openNpc(n){
   if(v.hasImg){
     const img=document.createElement('img'); img.src=`villagers/${v.id}.webp`; img.alt=v.name;
     img.style.cssText='width:128px;height:128px;object-fit:cover;border-radius:12px;image-rendering:auto;';
-    img.onerror=()=>{ img.remove(); const f=spriteEl('hero',64,v.skill==='frenzy'?DARK_MAX_OV:{B:col,b:darken(col,0.62)}); if(f)$('#npcPor').appendChild(f); };
+    img.onerror=()=>{ img.remove(); const sp=unitSprite(v); const f=spriteEl(sp.name,64,sp.ov); if(f)$('#npcPor').appendChild(f); };
     $('#npcPor').appendChild(img);
   } else {
-    const por=spriteEl('hero',64, v.skill==='frenzy'?DARK_MAX_OV:{B:col,b:darken(col,0.62)}); if(por)$('#npcPor').appendChild(por);
+    const sp2=unitSprite(v); const por=spriteEl(sp2.name,64,sp2.ov); if(por)$('#npcPor').appendChild(por);
   }
   card.classList.add('show');
   $('#npcX').onclick=()=>card.classList.remove('show');

@@ -144,12 +144,62 @@ for (const file of files) {
     }
   }
 
+  // 選用：自訂像素角色（sprite）——純數據、零程式碼注入。
+  // grid = 字元網格（4–16 寬 × 4–16 高），每個字元對應調色盤顏色。
+  // colors = 自訂色碼（最多 8 個），key 是 grid 裡的單字元。
+  // '.' = 透明、'O' = 輪廓，這兩個加上 BASEPAL 內建色永遠可用。
+  const SPRITE_PAL_BUILTINS = new Set(['.','O','H','S','W','F','k','B','b','g','d','y','r']);
+  const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+  if (v.sprite != null) {
+    if (typeof v.sprite !== "object" || Array.isArray(v.sprite)) {
+      fail(file, `「sprite」要是物件（含 grid 和 colors），見 CONTRIBUTING.md。`);
+    } else {
+      const { grid, colors } = v.sprite;
+      if (!Array.isArray(grid) || grid.length < 4 || grid.length > 16) {
+        fail(file, `「sprite.grid」要是 4–16 行的字串陣列。`);
+      } else {
+        const gw = grid[0].length;
+        if (gw < 4 || gw > 16) fail(file, `sprite 寬度要 4–16（你的是 ${gw}）。`);
+        if (grid.some(r => typeof r !== "string" || r.length !== gw)) {
+          fail(file, `sprite.grid 每行長度必須一樣（都是 ${gw}）。`);
+        }
+        // 收集合法字元：內建 + 自訂 colors
+        const validChars = new Set(SPRITE_PAL_BUILTINS);
+        if (colors != null) {
+          if (typeof colors !== "object" || Array.isArray(colors)) {
+            fail(file, `「sprite.colors」要是物件（key=單字元、value=#RRGGBB）。`);
+          } else {
+            const ck = Object.keys(colors);
+            if (ck.length > 8) fail(file, `sprite.colors 最多 8 個自訂顏色（你有 ${ck.length} 個）。`);
+            for (const k of ck) {
+              if (k.length !== 1) fail(file, `sprite.colors 的 key 必須是單字元（「${k}」不合規）。`);
+              if (!HEX_RE.test(colors[k])) fail(file, `sprite.colors.${k} 要是 #RRGGBB 格式的色碼（你填了 ${colors[k]}）。`);
+              validChars.add(k);
+            }
+          }
+        }
+        // 檢查 grid 裡每個字元都有對應顏色
+        for (let gy = 0; gy < grid.length; gy++) {
+          for (const ch of grid[gy]) {
+            if (!validChars.has(ch)) {
+              fail(file, `sprite.grid 第 ${gy+1} 行有未定義的字元「${ch}」。用 . 透明、O 輪廓，或在 colors 裡定義它的顏色。`);
+            }
+          }
+        }
+      }
+    }
+  }
+
   // 只保留引擎用得到的欄位（丟掉多餘 key，避免夾帶東西）
   const clean = { id:v.id, name:v.name, job:v.job, emoji:v.emoji, hp:v.hp, atk:v.atk, spd:v.spd, skill:v.skill, cry:v.cry };
   if (v.crit != null) clean.crit = v.crit;
   if (typeof v.story === "string") clean.story = v.story;
   if (typeof v.join === "string") clean.join = v.join;
   if (webpIds.has(v.id)) clean.hasImg = true;
+  if (v.sprite && typeof v.sprite === "object" && Array.isArray(v.sprite.grid)) {
+    clean.sprite = { grid: v.sprite.grid };
+    if (v.sprite.colors && typeof v.sprite.colors === "object") clean.sprite.colors = v.sprite.colors;
+  }
   villagers.push(clean);
 }
 
