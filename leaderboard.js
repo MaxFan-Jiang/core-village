@@ -78,6 +78,7 @@
         team: Array.isArray(run.team) ? run.team.slice(0, 4) : [],
         teamEmojis: Array.isArray(run.teamEmojis) ? run.teamEmojis.slice(0, 4) : [],
         ts: run.ts || Date.now(),
+        ua: (typeof navigator !== 'undefined' ? navigator.userAgent : 'non-browser').slice(0, 200),
       };
       try { await r.be.submit(entry); }
       catch (e) { console.warn("[leaderboard] 送分失敗，改存本機：", e.message); localBackend().submit(entry); }

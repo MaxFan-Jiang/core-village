@@ -20,12 +20,13 @@ service cloud.firestore {
     }
 
     function isValidScore(d) {
-      return d.keys().hasOnly(['handle', 'wave', 'team', 'teamEmojis', 'ts'])
+      return d.keys().hasOnly(['handle', 'wave', 'team', 'teamEmojis', 'ts', 'ua'])
         && d.handle is string && d.handle.size() >= 1 && d.handle.size() <= 16
         && d.wave is int && d.wave >= 0 && d.wave <= 10000
         && d.team is list && d.team.size() <= 4
         && d.teamEmojis is list && d.teamEmojis.size() <= 4
-        && d.ts == request.time;            // 必須用 serverTimestamp，擋掉假時間
+        && d.ts == request.time             // 必須用 serverTimestamp，擋掉假時間
+        && (!('ua' in d) || (d.ua is string && d.ua.size() <= 200));  // ua 選填，有填就限長度
     }
   }
 }
