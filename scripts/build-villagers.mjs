@@ -52,12 +52,36 @@ try {
   console.error(`找不到 villagers/ 資料夾（${VILLAGERS_DIR}）。`);
   process.exit(1);
 }
-// 抓「看起來是村民卡、卻忘了 .json 副檔名」的檔案：給清楚的中文錯誤。否則它們會被靜默略過＝CI 假綠燈、
-// 卡片卻永遠不出現（夥伴最常見的坑：在 GitHub 網頁建檔時漏打副檔名）。排除 _ 範本與 . 開頭的隱藏檔。
+// 抓不支援的檔案格式：.json 是村民資料、.webp 是角色卡圖片，其他都退回。
+// 排除 _ 範本與 . 開頭的隱藏檔。
 for (const d of entries) {
-  if (d.isFile() && !d.name.endsWith(".json") && !d.name.startsWith("_") && !d.name.startsWith(".")) {
-    fail(d.name, `檔名少了 .json 副檔名，引擎會直接忽略它。請改名成 "${d.name}.json"（全小寫英文／數字／減號，例如 villagers/my-handle.json）。`);
+  if (d.isFile() && !d.name.endsWith(".json") && !d.name.endsWith(".webp") && !d.name.startsWith("_") && !d.name.startsWith(".")) {
+    fail(d.name, `不支援的檔案格式。村民資料用 .json，角色卡圖片用 .webp（見 CONTRIBUTING.md）。`);
   }
+}
+
+// 驗證角色卡圖片（.webp）：格式、大小
+const IMAGE_MAX_BYTES = 800 * 1024; // 800KB
+const webpFiles = entries.filter(d => d.isFile() && d.name.endsWith(".webp")).map(d => d.name);
+const webpIds = new Set();
+for (const wf of webpFiles) {
+  const base = wf.replace(/\.webp$/, "");
+  if (!ID_RE.test(base)) {
+    fail(wf, `圖片檔名不合規。請用和 JSON 同名的小寫英文／數字／減號（例如 villagers/my-handle.webp）。`);
+    continue;
+  }
+  const wpath = join(VILLAGERS_DIR, wf);
+  const buf = readFileSync(wpath);
+  // WebP magic bytes: RIFF(4) + size(4) + WEBP(4)
+  if (buf.length < 12 || buf.toString("ascii", 0, 4) !== "RIFF" || buf.toString("ascii", 8, 12) !== "WEBP") {
+    fail(wf, `不是合法的 WebP 圖片。請轉成 .webp 格式（可用線上工具轉檔）。`);
+    continue;
+  }
+  if (buf.length > IMAGE_MAX_BYTES) {
+    fail(wf, `圖片太大（${(buf.length / 1024).toFixed(0)} KB），上限 800 KB。請壓縮後重傳。`);
+    continue;
+  }
+  webpIds.add(base);
 }
 const files = entries.filter(d => d.isFile() && d.name.endsWith(".json") && !d.name.startsWith("_")).map(d => d.name);
 files.sort();
@@ -125,6 +149,7 @@ for (const file of files) {
   if (v.crit != null) clean.crit = v.crit;
   if (typeof v.story === "string") clean.story = v.story;
   if (typeof v.join === "string") clean.join = v.join;
+  if (webpIds.has(v.id)) clean.hasImg = true;
   villagers.push(clean);
 }
 

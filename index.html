@@ -1079,7 +1079,15 @@ function openNpc(n){
     ${v.join?`<div class="njoin">🤝 ${esc(v.join)}</div>`:''}
     ${v.cry?`<div class="ncry">「${esc(v.cry)}」</div>`:''}
     <button class="btn${inSel?' ghost':''}" id="npcPick">${inSel?'✓ 已在隊伍（移出）':'加入隊伍'}</button></div>`;
-  const por=spriteEl('hero',64, v.skill==='frenzy'?DARK_MAX_OV:{B:col,b:darken(col,0.62)}); if(por)$('#npcPor').appendChild(por);   // 😈 黑化MAX 立繪也全黑
+  // 角色卡立繪：有自訂圖片用 webp，否則像素 sprite
+  if(v.hasImg){
+    const img=document.createElement('img'); img.src=`villagers/${v.id}.webp`; img.alt=v.name;
+    img.style.cssText='width:128px;height:128px;object-fit:cover;border-radius:12px;image-rendering:auto;';
+    img.onerror=()=>{ img.remove(); const f=spriteEl('hero',64,v.skill==='frenzy'?DARK_MAX_OV:{B:col,b:darken(col,0.62)}); if(f)$('#npcPor').appendChild(f); };
+    $('#npcPor').appendChild(img);
+  } else {
+    const por=spriteEl('hero',64, v.skill==='frenzy'?DARK_MAX_OV:{B:col,b:darken(col,0.62)}); if(por)$('#npcPor').appendChild(por);
+  }
   card.classList.add('show');
   $('#npcX').onclick=()=>card.classList.remove('show');
   $('#npcPick').onclick=()=>{
