@@ -1,0 +1,39 @@
+﻿{
+  "id": "a-ju",
+  "name": "貓咪阿橘",
+  "job": "專業撒嬌 · 可愛是主業",
+  "emoji": "🐯",
+  "hp": 120,
+  "atk": 14,
+  "spd": 17,
+  "skill": "hypnosis",
+  "crit": 0.45,
+  "cry": "喵～（翻肚）全場眾人已融化。",
+  "story": "整天吃飯、睡覺、玩東東，可愛到讓對手忘記為什麼要打架。牠不是故意的，牠只是太軟了。",
+  "join": "幫牠找到東東，牠會用力蹭你表示感謝。",
+  "sprite": {
+    "grid": [
+      ".D......D.",
+      "DMD....DMD",
+      "DBMDDDDMBD",
+      "DBMMMMMMBD",
+      "DMMMMMMMMD",
+      "DMMEMMEMMD",
+      "DMMEMMEMMD",
+      "DBMMMMMMBD",
+      ".DBMMMMBD.",
+      "...DDDD...",
+      "..DMMMMD..",
+      "..DMMMMD..",
+      "..DMDDMD..",
+      "..DWDDWD..",
+      "...D..D..."
+    ],
+    "colors": {
+      "D": "#c4410b",
+      "M": "#fc8b01",
+      "B": "#e26106",
+      "E": "#2b2b2b"
+    }
+  }
+}
