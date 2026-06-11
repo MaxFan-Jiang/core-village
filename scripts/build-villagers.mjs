@@ -90,7 +90,9 @@ for (const file of files) {
   const path = join(VILLAGERS_DIR, file);
   let v;
   try {
-    v = JSON.parse(readFileSync(path, "utf8"));
+    // strip 掉開頭的 UTF-8 BOM（U+FEFF）：Windows 記事本／部分編輯器存檔會夾帶它，
+    // 否則 JSON.parse 會丟「Unexpected token」、而夥伴看不見那個隱形字元、無從修起。
+    v = JSON.parse(readFileSync(path, "utf8").replace(/^\uFEFF/, ""));
   } catch (e) {
     fail(file, `不是合法的 JSON（${e.message}）。提示：每個欄位後面要逗號，最後一個不要；引號要用半形 " "。`);
     continue;
