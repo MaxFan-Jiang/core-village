@@ -9,5 +9,24 @@
   "skill": "dodge",
   "cry": "我躲好了！",
   "story": "東東喜歡待在紙箱中思考貓生，自認為是躲貓貓高手卻常被一隻胖橘找到，深感困擾。",
-  "join": "閉上眼睛打開箱子。如果你覺得牠在，牠就在。"
+  "join": "閉上眼睛打開箱子。如果你覺得牠在，牠就在。",
+  "sprite": {
+    "grid": [
+      "..OO......OO..",
+      ".OKKO....OKKO.",
+      ".OKKKKKKKKKKO.",
+      ".OKYYKKKKYYKO.",
+      "OBBBBBBBBBBBBO",
+      "OBBBBBBBBBBBBO",
+      "OBBBbBbBbBBBBO",
+      "OBBBBBBBBBBBBO",
+      ".OOOOOOOOOOOO."
+    ],
+    "colors": {
+      "K": "#1a1a1a",
+      "Y": "#d4a017",
+      "B": "#c4956a",
+      "b": "#8b6914"
+    }
+  }
 }
