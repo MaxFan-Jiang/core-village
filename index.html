@@ -845,11 +845,11 @@ const BOONS=[
   {id:'rest',      icon:'➕', name:'休整',     desc:'每波開始多回 18% 血量',         tags:['regen','heal'], apply:()=>perks.waveHeal+=0.18},
   {id:'berserk',   icon:'🔥', name:'狂戰',     desc:'血量越低攻擊越高（最多 +40%）', tags:['overclock','armorbreak'], once:true, apply:()=>perks.berserk=true},
   {id:'ramp',      icon:'🔺', name:'連環殺意', desc:'每次爆擊全隊爆擊率永久 +2%',     tags:['assassinate'], once:true, apply:()=>perks.critRamp=true},
-  {id:'bulwark',   icon:'🧱', name:'銅牆',     desc:'全隊受傷 -12%（上限 -48%）；封頂後改全隊 攻+5 / 血+5% / 速+1', tags:['taunt','armor','shield','regen','heal'], apply:()=>{ if((perks.dmgReduce||0)<0.48){ perks.dmgReduce=Math.min(0.48,(perks.dmgReduce||0)+0.12); } else { alive(allies).forEach(a=>{ a.atk+=5; a.baseAtk+=5; const hb=Math.round(a.maxHp*0.05); a.maxHp+=hb; a.hp+=hb; a.spd+=1; }); } }},
+  {id:'bulwark',   icon:'🧱', name:'銅牆',     desc:'全隊受傷 -12%（上限 -48%，點滿即不再出現）', tags:['taunt','armor','shield','regen','heal'], maxed:()=>(perks.dmgReduce||0)>=0.48, apply:()=>{ perks.dmgReduce=Math.min(0.48,(perks.dmgReduce||0)+0.12); }},   // ⛔ 2026-06-14：封頂後「+5攻/+5%血/+1速 無限疊」雪球段已移除——那個 +1速 無限疊讓我方速度成長性蓋過怪的縮放 → 怪永遠來不及在被重凍前行動 ＝ 無限凍兇手（Max 實測確認）。改成點滿 -48% 即從抽選池退出（maxed()）。⚠️銅牆「大改」（減傷上限/邊際遞減）暫緩：根因是「坦只能靠 Jocelyn」，要先重新實裝護甲技能讓菜刀隊有出場機會＋控場/其他手段端出來才動。本次只斷無限、不改基礎手感。
 ];
 function pickBoons(){
   const teamSkills=new Set([...selected].map(id=>VILLAGERS.find(v=>v.id===id)?.skill));
-  const pool=BOONS.filter(b=>!(b.once&&takenBoons.has(b.id)));
+  const pool=BOONS.filter(b=>!(b.once&&takenBoons.has(b.id)) && !(b.maxed&&b.maxed()));   // maxed()：可重複抽的 boon 達上限後退出池（如銅牆 -48% 封頂即不再出現）
   const bag=[]; pool.forEach(b=>{ const w=b.tags.some(t=>teamSkills.has(t))?3:1; for(let i=0;i<w;i++)bag.push(b); });
   const out=[];
   while(out.length<3 && bag.length){
