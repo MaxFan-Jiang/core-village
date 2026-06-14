@@ -348,7 +348,7 @@ const SKILLS = {
   taunt:      {name:"挺身",     icon:"🦺", desc:"嘲諷所有敵人吸引火力到自己，獲得大護盾並大幅減傷", kind:"util"},
   freeze:     {name:"罰站",     icon:"❄️", desc:"凍結攻擊最高的 2 個敵人並疊易傷，再放冰霜 Nova 轟全場", kind:"util"},
   assassinate:{name:"自動化連擊",icon:"🗡️", desc:"連擊最多 3 個敵人；爆擊疊『殺意』提升爆擊率，爆率滿後殺意轉攻擊力", kind:"atk"},
-  dodge:      {name:"薛丁格之態", icon:"📦", desc:"全隊進入疊加態：3 回合內每次受擊 70% 機率閃避（與『全場焦點』可疊、封頂 90%）", kind:"util"},
+  dodge:      {name:"薛丁格之態", icon:"📦", desc:"全隊進入疊加態：3 回合內每次受擊 90% 機率閃避（與『全場焦點』可疊、封頂 99%）", kind:"util"},
   focus:      {name:"全場焦點", icon:"🐯", desc:"被動永久 70% 閃避（無空窗）；放招吸引全場火力 3 回合、打牠的敵人疊一層易傷（沒命中也算）", kind:"util"},
   heal:       {name:"散熱模組", icon:"💧", desc:"大幅治療血量最低的隊友，並小補全隊", kind:"util"},
   summon:     {name:"檔期促銷", icon:"🎁", desc:"召喚一個援軍小幫手", kind:"util"},
@@ -679,7 +679,7 @@ function bumpVuln(u,n,t){ u.vuln=Math.min(VULN_CAP,(u.vuln||0)+n); u.vulnT=Math.
 
 async function dealDamage(target, amount, opt={}){
   if(!target||!target.alive) return 0;
-  const _dodge=Math.min(0.9,(target.pDodge||0)+(target.dodgeP||0));   // 被動閃避(橘貓固定0.7)＋計時閃避(Lynn)相加、封頂 0.9（留 10% 命中保證終止）
+  const _dodge=Math.min(0.99,(target.pDodge||0)+(target.dodgeP||0));   // 橘貓 pDodge 0.7 ＋ ss-cat 薛丁格之態 dodgeP 0.9 相加、封頂 0.99（留 1% 命中保證終止＝Max「還被打死就是命」；⛔別到 1.0 會卡死再生王破閉環）
   if(_dodge>0 && Math.random()<_dodge){ pop(target,'閃避','miss'); fxOn(target,'🎯'); log(`　${target.emoji} ${target.name} <span class="sk">閃避</span>了攻擊`); paintAll(); return 0; }
   let dmg=Math.round(amount * (target.vuln>0?(1+(0.20+(perks.vulnBonus||0))*target.vuln):1));   // ⭐每層 +0.20（前期有感）；層數封頂 VULN_CAP（後期不爆）
   if(target.taunt>0) dmg=Math.round(dmg*0.5);   // 嘲諷中的坦克：減傷 50%
@@ -748,7 +748,7 @@ async function useSkill(u, ownSide, foeSide){
     case 'heal':   { const cand=alive(ownSide).filter(a=>a.id!=='helper'); const t=cand.sort((a,b)=>a.hp/a.maxHp-b.hp/b.maxHp)[0]; if(t){const h=Math.round(t.maxHp*0.5); t.hp=Math.min(t.maxHp,t.hp+h); auraOn(t,'rgba(74,208,125,.5)'); fxOn(t,'➕'); pop(t,'+'+h,'heal'); log(`　💧 治療 ${t.emoji} ${t.name} +${h}`,'he'); cand.forEach(a=>{ if(a!==t){ const hh=Math.round(a.maxHp*0.12); a.hp=Math.min(a.maxHp,a.hp+hh); if(hh>0){fxOn(a,'➕'); pop(a,'+'+hh,'heal');} } });} break; }   // 主補 50% + 全隊小補 12%（補師流續命引擎）
     case 'empower': alive(ownSide).forEach(a=>{a.rally=2; a.crit=Math.min(0.9,(a.crit||0)+0.22); auraOn(a,'rgba(201,169,110,.5)'); fxOn(a,'📈');}); log(`　📈 全隊 攻擊↑（數回合）、爆擊率永久↑`,'sk'); break;
     case 'haste': alive(ownSide).forEach(a=>{a.haste=HASTE_DUR; auraOn(a,'rgba(127,208,192,.55)'); fxOn(a,'💨');}); log(`　💨 全隊速寫加速！${HASTE_DUR} 回合內出手更快（封頂 ${SPD_CAP}）`,'sk'); break;   // 放招大幅加速（被動小幅在 effSpd）
-    case 'dodge':  alive(ownSide).forEach(a=>{a.dodgeP=Math.min(0.9,(a.dodgeP||0)+0.7); a.dodgeT=Math.max(a.dodgeT||0,3); auraOn(a,'rgba(201,169,110,.55)'); fxOn(a,'🎯');}); log(`　🎯 全隊預判：3 回合內每次受擊 70% 機率閃避（與橘貓焦點可疊、封頂 90%）`,'sk'); break;   // ⭐改加法封頂 0.9：可與 focus 疊到幾乎必閃   // Max playtest：50%→70%（Lynn 太不穩定；坦法已有新選擇 max+岱華，不怕配 Joce 過強）
+    case 'dodge':  alive(ownSide).forEach(a=>{a.dodgeP=Math.min(0.9,(a.dodgeP||0)+0.9); a.dodgeT=Math.max(a.dodgeT||0,3); auraOn(a,'rgba(201,169,110,.55)'); fxOn(a,'🎯');}); log(`　🎯 薛丁格之態：3 回合內每次受擊 90% 機率閃避（與橘貓焦點 0.7 疊、封頂 99%）`,'sk'); break;   // ⭐ss-cat 全隊閃避 70%→90%（2026-06-15 Max）；與橘貓 pDodge 疊在 dealDamage 封頂 0.99
     case 'summon': {
       allies = allies.filter(a=>!(a.id==='helper' && !a.alive));            // 清掉死掉的小雞
       if(allies.filter(a=>a.id==='helper').length < 3){                     // 場上最多 3 隻（還原）
