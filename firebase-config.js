@@ -15,5 +15,10 @@ window.__LEADERBOARD_CONFIG__ = {
     messagingSenderId: "568230815678",
     appId: "1:568230815678:web:4d29f48393b3c91c227bef",
   },
-  collection: "village-scores-s1",   // S1 正式賽季（beta/s0 舊榜＝village-scores，已封存唯讀）
+  collection: "village-scores-s1",   // 送分目標＝現役賽季（S1）
+  // 賽季清單（現役放第一個＝預設顯示；其餘為歷屆封存榜，可檢視不可送分）
+  seasons: [
+    { key: "s1",   label: "S1",         collection: "village-scores-s1" },
+    { key: "beta", label: "Beta（封存）", collection: "village-scores" },
+  ],
 };

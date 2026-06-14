@@ -174,6 +174,11 @@
   .lb .comp{display:flex;gap:1px;font-size:18px;flex:1;overflow:hidden;min-width:0}
   .lb .wv{font-weight:700;color:#9aa1bd;font-size:13px;flex:none;white-space:nowrap}
   .lb .wv b{font-size:18px;color:var(--cyan)}
+  /* 賽季切換 tab（歷屆榜單）*/
+  .lbtabs{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+  .lbtab{font-size:13px;padding:5px 13px;border-radius:50px;border:1px solid var(--line);background:rgba(201,169,110,.06);color:#9aa1bd;cursor:pointer;transition:.15s}
+  .lbtab:hover{border-color:var(--gold)}
+  .lbtab.active{border-color:var(--gold);background:rgba(201,169,110,.16);color:var(--gold);font-weight:700}
   .lb .lb-empty,.lb li.lb-empty{justify-content:center;color:#6a7290;font-size:13.5px}
   .lb-submit{margin-top:15px;display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap}
   .lb-submit input{background:#0b0f1d;border:1px solid var(--line);border-radius:50px;padding:9px 16px;color:#e8ecf7;
@@ -297,8 +302,9 @@
 
   <!-- LEADERBOARD（公播排行榜）-->
   <div id="board" class="panel">
-    <div class="ttl"><span class="n">★</span>公播排行榜 · S1<span class="meta" id="lbMode">本機</span></div>
+    <div class="ttl"><span class="n">★</span>公播排行榜<span class="meta" id="lbMode">本機</span></div>
     <div class="sub" style="margin-bottom:4px" id="lbSub">🏁 S1 正式賽季開跑！平衡大改後重新衝榜，看誰的卡組撐最多波。每場結束自動上榜（用你自選的代號）。</div>
+    <div class="lbtabs" id="lbTabs"></div>
     <ol class="lb" id="lbBody"><li class="lb-empty">還沒有紀錄，當第一個衝榜的人。</li></ol>
   </div>
 
@@ -1189,7 +1195,30 @@ function renderLeaderboard(entries){
       +`<span class="wv">第 <b>${e.wave|0}</b> 波</span></li>`;
   }).join('');
 }
-if(window.Leaderboard) Leaderboard.subscribe(renderLeaderboard);
+/* 賽季切換：現役 S1 + 歷屆封存榜（beta）。tab 切換只換「檢視」的 collection，送分永遠進現役 */
+(function initSeasons(){
+  if(!window.Leaderboard) return;
+  const seasons = Leaderboard.seasons || [];
+  const tabsEl = $('#lbTabs'), subEl = $('#lbSub');
+  let curUnsub = null;
+  function view(idx){
+    const s = seasons[idx]; if(!s) return;
+    if(curUnsub){ curUnsub(); }
+    if(tabsEl) [...tabsEl.children].forEach((el,i)=> el.classList.toggle('active', i===idx));
+    if(subEl) subEl.innerHTML = (idx===0)
+      ? '🏁 S1 正式賽季開跑！平衡大改後重新衝榜，看誰的卡組撐最多波。每場結束自動上榜。'
+      : '📦 '+esc(s.label)+'：平衡大改前的封存榜（唯讀，僅供回顧）；你的新分數會記到 S1。';
+    if($('#lbBody')) $('#lbBody').innerHTML='<li class="lb-empty">載入中…</li>';
+    curUnsub = Leaderboard.viewSeason(s.collection, renderLeaderboard);
+  }
+  if(tabsEl && seasons.length>1){
+    tabsEl.innerHTML = seasons.map((s,i)=>`<button class="lbtab${i===0?' active':''}" data-i="${i}">${esc(s.label)}</button>`).join('');
+    tabsEl.querySelectorAll('.lbtab').forEach(b=> b.addEventListener('click', ()=> view(+b.dataset.i)));
+    view(0);   // 預設看現役 S1
+  } else {
+    Leaderboard.subscribe(renderLeaderboard);   // 單一賽季退回
+  }
+})();
 
 renderRoster();
 layoutNpcs();
