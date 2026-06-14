@@ -343,7 +343,7 @@ const SKILLS = {
   freeze:     {name:"罰站",     icon:"❄️", desc:"凍結攻擊最高的 2 個敵人並疊易傷，再放冰霜 Nova 轟全場", kind:"util"},
   assassinate:{name:"自動化連擊",icon:"🗡️", desc:"連擊最多 3 個敵人；爆擊疊『殺意』提升爆擊率，爆率滿後殺意轉攻擊力", kind:"atk"},
   dodge:      {name:"分鏡預判", icon:"🎯", desc:"全隊 3 回合內、每次受擊 70% 機率閃避（與『全場焦點』可疊、封頂 90%）", kind:"util"},
-  focus:      {name:"全場焦點", icon:"🐯", desc:"吸引全場敵人攻擊自己、自身 70% 機率閃避；攻擊牠的敵人都會被疊一層易傷（沒命中也算）", kind:"util"},
+  focus:      {name:"全場焦點", icon:"🐯", desc:"吸引全場敵人攻擊自己、自身 70% 閃避＋受傷 -50%（雙重保命才扛得住）；攻擊牠的敵人疊一層易傷（沒命中也算）", kind:"util"},
   heal:       {name:"散熱模組", icon:"💧", desc:"大幅治療血量最低的隊友，並小補全隊", kind:"util"},
   summon:     {name:"檔期促銷", icon:"🎁", desc:"召喚一個援軍小幫手", kind:"util"},
   corrode:    {name:"蝕刻",     icon:"☠️", desc:"攻擊，並讓全體敵人中毒，可疊層（中毒敵死亡會蔓延）", kind:"atk"},
@@ -354,7 +354,7 @@ const SKILLS = {
   armorbreak: {name:"精密拆解", icon:"🔩", desc:"殘血敵即死（斬殺線高、常斬得到）、以餘血連鎖炸全場，最後重擊一名敵人；無殘血則疊易傷。cd 短", kind:"atk"},
   splash:     {name:"擴散打擊", icon:"🌊", desc:"重擊主目標，傷害的一半濺射全體（隨你養爆擊一起放大）", kind:"atk"},
   detonate:   {name:"連鎖引爆", icon:"🧨", desc:"重擊主目標；若擊殺，以其最大血量 30% 引爆波及全體", kind:"atk"},
-  armor:      {name:"披甲", icon:"🪖", desc:"全隊獲得相當於血量 60% 的護甲盾（按比例、後期不怕被穿）", kind:"util"},
+  armor:      {name:"披甲", icon:"🪖", desc:"全隊 3 回合內受傷 -45%（% 減傷、隨敵人變強等比有效；第二種坦法）", kind:"util"},
   frenzy:     {name:"都給我躁起來！", icon:"💢", desc:"全場狂暴化：敵我所有人攻擊×2（永久）；限時內清場則全隊滿血復活", kind:"util"},
 };
 /* 村民資料由 build 產生（window.__VILLAGERS__，聚合自 villagers/*.json）。原本寫死的陣列已抽走。*/
@@ -671,6 +671,8 @@ async function dealDamage(target, amount, opt={}){
   let dmg=Math.round(amount * (target.vuln>0?(1+(0.20+(perks.vulnBonus||0))*target.vuln):1));   // ⭐每層 0.15→0.20（前期有感）；層數封頂 VULN_CAP（後期不爆）
   if(target.taunt>0) dmg=Math.round(dmg*0.5);   // 嘲諷中的坦克：減傷 50%
   if(perks.dmgReduce>0 && target.side==='ally') dmg=Math.round(dmg*(1-perks.dmgReduce));   // 銅牆 boon：全隊 %減傷（隨疊成長、追得上敵人 %攻擊）
+  if(target.side==='ally' && (target.focus||0)>0) dmg=Math.round(dmg*0.5);   // ⭐橘貓焦點：被打到也只受 50%（% 減傷才扛得住深波，固定盾沒用）
+  if((target.armorRed||0)>0) dmg=Math.round(dmg*(1-target.armorRed));   // ⭐護甲：全隊 % 減傷（隨敵人變強等比有效，取代會蒸發的固定盾）
   if(target.armor>0){ const eff=Math.max(0,target.armor-0.12*(target.vuln||0)); dmg=Math.round(dmg*(1-eff)); }   // 重甲怪：高 %減傷，每層易傷削穿 0.12（逼易傷流才打得動）
   let dealt=0;
   if(target.shield>0){
@@ -759,7 +761,7 @@ async function useSkill(u, ownSide, foeSide){
       break; }
     case 'splash': { const main=lowestHp(foeSide); const dealt=await basicAttack(u,foeSide,1.8); if(dealt>0){ for(const f of alive(foeSide)){ if(f===main)continue; fxOn(f,'🌊'); await dealDamage(f, Math.round(dealt*0.5), {}); } } log(`　🌊 濺射！主擊一半波及全場`,'sk'); break; }   // 擴散：主擊傷害50%濺全體、隨爆擊放大
     case 'detonate': { const main=lowestHp(foeSide); await basicAttack(u,foeSide,1.5); if(main && !main.alive){ const boom=Math.round(main.maxHp*0.3); shake(true); for(const f of alive(foeSide)){ fxOn(f,'🧨'); await dealDamage(f, boom, {big:true}); } log(`　🧨 ${main.emoji} 被引爆，殘骸衝擊波炸全場`,'sk'); } break; }   // 引爆：擊殺則以該敵 maxHp 30% AoE
-    case 'armor': alive(ownSide).forEach(a=>{ const s=Math.round(a.maxHp*0.6); a.shield+=s; auraOn(a,'rgba(110,135,184,.55)'); fxOn(a,'🪖'); }); log(`　🪖 全隊披上相當於 60% 血量的護甲盾`,'sk'); break;   // %護甲：盾=maxHp 60%（隨血縮放、不怕後期被穿）
+    case 'armor': alive(ownSide).forEach(a=>{ a.armorRed=0.45; a.armorRedT=3; auraOn(a,'rgba(110,135,184,.55)'); fxOn(a,'🪖'); }); log(`　🪖 全隊披甲：3 回合內受傷 -45%（% 減傷、隨敵人變強等比有效）`,'sk'); break;   // ⭐改 % 減傷取代固定盾（固定盾深波一拳就破、無效）；cd3 lasts3＝近全程在；第二坦選項
     case 'frenzy': {   // 😈 黑化MAX：永久全場狂暴靈氣。敵我所有人 ATK×2（在 basicAttack 生效，雙方都吃；Nova/超頻額外吃×2；⛔拆解AoE/毒傷不吃）＋ N 回合清場全隊滿血復活（runBattle）
       if(!frenzyActive){ frenzyActive=true; [...alive(allies),...alive(foes)].forEach(x=>{ auraOn(x,'rgba(224,112,79,.6)'); fxOn(x,'💢'); }); tintFlash('rgba(224,112,79,.5)'); shake(true); sfx('crit'); }
       log(`　💢 都給我躁起來！全場攻擊×2（敵我不分，永久）；${FRENZY_REVIVE_ROUNDS} 回合內清場＝全隊滿血復活`,'sk'); break; }
@@ -803,7 +805,7 @@ async function endOfRound(){
     if(u.frozen>0) u.frozen--;
     if(u.dodgeT>0){ u.dodgeT--; if(u.dodgeT<=0)u.dodgeP=0; }
     if(u.side==='foe') u.enrage=(u.enrage||0)+1;   // 激怒：一波拖越久、怪攻擊越高（破龜縮 DPS check）
-    if(u.side==='ally'){ if(u.rally>0){ u.rally--; if(u.rally===0)pop(u,'攻↑結束','miss'); } if(u.taunt>0)u.taunt--; if(u.focus>0)u.focus--; }
+    if(u.side==='ally'){ if(u.rally>0){ u.rally--; if(u.rally===0)pop(u,'攻↑結束','miss'); } if(u.taunt>0)u.taunt--; if(u.focus>0)u.focus--; if(u.armorRedT>0){ u.armorRedT--; if(u.armorRedT<=0)u.armorRed=0; } }
   }
   if(foes.some(f=>f.alive && (f.enrage||0)===3)) log('　😡 敵人激怒了！清場太慢會被越打越痛，加快輸出',' dm');
   paintAll(); if(any){ sfx('poison'); await sleep(280); }
