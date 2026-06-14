@@ -342,12 +342,13 @@ const SKILLS = {
   taunt:      {name:"挺身",     icon:"🦺", desc:"嘲諷所有敵人吸引火力到自己，獲得大護盾並大幅減傷", kind:"util"},
   freeze:     {name:"罰站",     icon:"❄️", desc:"凍結攻擊最高的 2 個敵人並疊易傷，再放冰霜 Nova 轟全場", kind:"util"},
   assassinate:{name:"自動化連擊",icon:"🗡️", desc:"連擊最多 3 個敵人；爆擊疊『殺意』提升爆擊率，爆率滿後殺意轉攻擊力", kind:"atk"},
-  dodge:      {name:"分鏡預判", icon:"🎯", desc:"全隊 3 回合內、每次受擊 70% 機率閃避", kind:"util"},
+  dodge:      {name:"分鏡預判", icon:"🎯", desc:"全隊 3 回合內、每次受擊 70% 機率閃避（與『全場焦點』可疊、封頂 90%）", kind:"util"},
+  focus:      {name:"全場焦點", icon:"🐯", desc:"吸引全場敵人攻擊自己、自身 70% 機率閃避；攻擊牠的敵人都會被疊一層易傷（沒命中也算）", kind:"util"},
   heal:       {name:"散熱模組", icon:"💧", desc:"大幅治療血量最低的隊友，並小補全隊", kind:"util"},
   summon:     {name:"檔期促銷", icon:"🎁", desc:"召喚一個援軍小幫手", kind:"util"},
   corrode:    {name:"蝕刻",     icon:"☠️", desc:"攻擊，並讓全體敵人中毒，可疊層（中毒敵死亡會蔓延）", kind:"atk"},
   empower:    {name:"市場賦能", icon:"📈", desc:"全隊攻擊力提升（數回合）、爆擊率永久疊加", kind:"util"},
-  hypnosis:   {name:"全場催眠", icon:"🌀", desc:"凍結所有敵人並疊易傷，順手小補全隊", kind:"util"},
+  hypnosis:   {name:"全場催眠", icon:"🌀", desc:"凍結所有敵人並疊易傷（cd 較長但每發更重），順手小補全隊", kind:"util"},
   overclock:  {name:"超頻",     icon:"⚡", desc:"鎖定最硬的敵人，爆發＋其最大血量 15%（專剋高血魔王）；下回合過熱", kind:"atk"},
   regen:      {name:"節能續航", icon:"➕", desc:"全隊獲得『再生』，4 回合內每回合回血", kind:"util"},
   armorbreak: {name:"精密拆解", icon:"🔩", desc:"殘血敵即死、以餘血連鎖引爆全場，最後重擊一名敵人；無殘血則疊易傷", kind:"atk"},
@@ -503,7 +504,7 @@ $('#autoBtn').addEventListener('click',()=>{
 /* ---------- 建立戰鬥單位 ---------- */
 // 技能 CD（回合）平衡旋鈕：預設 3＝每 4 回合放一次。hypnosis=1＝每 2 回合放＝Max 放招最頻繁（凍1+易傷1+治癒1、靠次數疊量、餵岱華 Nova）。
 // ⛔ 鐵律：frozen 必須 < 放招間隔(=cd+1) 才有 gap、不永久凍結。hypnosis cd=1＝間隔 2＝凍結必須 ≤1（已設 Math.max(f,1)）。若把 hypnosis 凍結改回 2 又維持 cd=1＝永久凍結＝破閉環＋再生王零傷無限自癒，務必同動兩者。CD 留引擎碼、不放貢獻者 villagers/*.json。
-const CD_BY_SKILL = { hypnosis: 1 };
+const CD_BY_SKILL = { hypnosis: 2 };   // ⭐2026-06-14：1→2，慢啟動、每發更重（凍+2/易傷+2）；間隔3>凍2＝留 gap 不永凍
 function mkAlly(v){
   return {...v, side:'ally', maxHp:v.hp, hp:v.hp, baseHp:v.hp, baseAtk:v.atk, atk:v.atk,
     crit:(typeof v.crit==='number'?v.crit:0.08), critDmg:1.9, bloodlust:0,
@@ -568,7 +569,7 @@ const SPRITES={
 const BASEPAL={'.':null,'O':'#181226','H':'#5a3a2a','S':'#f3cda0','W':'#ffffff','F':'#39394d','k':'#101820',
   'B':'#C9A96E','b':'#a6843a','g':'#62c06e','d':'#3c8a49','y':'#f5d44a','r':'#f0922e'};
 function darken(hex,f){ const n=parseInt(hex.slice(1),16); const r=Math.round(((n>>16)&255)*f),g=Math.round(((n>>8)&255)*f),b=Math.round((n&255)*f); return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1); }
-const SKILLCOL={shield:'#5e8fc8',taunt:'#6b87b8',freeze:'#79b6e0',assassinate:'#6f8fb5',dodge:'#e89ac0',heal:'#6abf8a',summon:'#e0a060',corrode:'#8bbf5a',empower:'#C9A96E',hypnosis:'#9b6dd6',overclock:'#e0704f',regen:'#5ec8a0',armorbreak:'#8a8f9e',splash:'#5ec8e0',detonate:'#e0704f',armor:'#6b87b8',frenzy:'#161616'};
+const SKILLCOL={shield:'#5e8fc8',taunt:'#6b87b8',freeze:'#79b6e0',assassinate:'#6f8fb5',dodge:'#e89ac0',focus:'#fc8b01',heal:'#6abf8a',summon:'#e0a060',corrode:'#8bbf5a',empower:'#C9A96E',hypnosis:'#9b6dd6',overclock:'#e0704f',regen:'#5ec8a0',armorbreak:'#8a8f9e',splash:'#5ec8e0',detonate:'#e0704f',armor:'#6b87b8',frenzy:'#161616'};
 const DARK_MAX_OV={B:'#161616',b:'#000000',H:'#0c0c0c',S:'#363636',F:'#000000',W:'#d23b3b'};   // 😈 黑化MAX：原 hero 模型「全黑」調色盤（衣/髮/膚/腳全暗，紅眼透出瘋意）
 // 載入自訂像素 sprite（村民 JSON 裡的 sprite.grid + sprite.colors）
 (window.__VILLAGERS__||[]).forEach(v=>{
@@ -661,11 +662,13 @@ async function banner(icon,title,sub){ const b=$('#skb'); b.innerHTML=`<span cla
 function alive(arr){ return arr.filter(u=>u.alive); }
 function lowestHp(arr){ return alive(arr).sort((a,b)=>a.hp-b.hp)[0]; }
 function rand(arr){ const a=alive(arr); return a[Math.floor(Math.random()*a.length)]; }
+const VULN_CAP=6;   // ⭐易傷層數硬上限：封頂傷害＋冰霜 Nova 滾雪球（防雙控無限）；≥6 保重甲仍可被 6 層削穿
+function bumpVuln(u,n,t){ u.vuln=Math.min(VULN_CAP,(u.vuln||0)+n); u.vulnT=Math.max(u.vulnT||0,t); }
 
 async function dealDamage(target, amount, opt={}){
   if(!target||!target.alive) return 0;
   if(target.dodgeP>0 && Math.random()<target.dodgeP){ pop(target,'閃避','miss'); fxOn(target,'🎯'); log(`　${target.emoji} ${target.name} <span class="sk">閃避</span>了攻擊`); paintAll(); return 0; }   // 機率閃避（持續數回合、每次受擊判定、不消耗）
-  let dmg=Math.round(amount * (target.vuln>0?(1+(0.15+(perks.vulnBonus||0))*target.vuln):1));
+  let dmg=Math.round(amount * (target.vuln>0?(1+(0.20+(perks.vulnBonus||0))*target.vuln):1));   // ⭐每層 0.15→0.20（前期有感）；層數封頂 VULN_CAP（後期不爆）
   if(target.taunt>0) dmg=Math.round(dmg*0.5);   // 嘲諷中的坦克：減傷 50%
   if(perks.dmgReduce>0 && target.side==='ally') dmg=Math.round(dmg*(1-perks.dmgReduce));   // 銅牆 boon：全隊 %減傷（隨疊成長、追得上敵人 %攻擊）
   if(target.armor>0){ const eff=Math.max(0,target.armor-0.12*(target.vuln||0)); dmg=Math.round(dmg*(1-eff)); }   // 重甲怪：高 %減傷，每層易傷削穿 0.12（逼易傷流才打得動）
@@ -718,7 +721,7 @@ async function useSkill(u, ownSide, foeSide){
   switch(u.skill){
     case 'shield': alive(ownSide).forEach(a=>{a.shield+=26; auraOn(a,'rgba(94,200,224,.55)'); fxOn(a,'🛡️');}); break;
     case 'taunt': { u.taunt=3; u.shield+=Math.round(u.maxHp*0.5); auraOn(u,'rgba(110,135,184,.65)'); fxOn(u,'🦺'); pop(u,'嘲諷！','miss'); log(`　🦺 ${u.emoji} ${u.name} 挺身嘲諷，火力都往她身上、且傷害砍半`,'sk'); break; }
-    case 'freeze': { const _tgts=alive(foeSide).slice().sort((a,b)=>(b.atk||0)-(a.atk||0)).slice(0,2); for(const tgt of _tgts){ tgt.frozen=Math.min(3,(tgt.frozen||0)+2); tgt.vuln=(tgt.vuln||0)+2; tgt.vulnT=Math.max(tgt.vulnT||0,4); auraOn(tgt,'rgba(120,180,255,.6)'); fxOn(tgt,'❄️'); pop(tgt,'❄️凍結','miss'); } if(_tgts.length) log(`　❄️ 凍結攻擊最高的 ${_tgts.length} 個敵人＋易傷 ×2`,'sk');   // ⛔ Max 鐵律（2026-06-07 反轉舊 decision→改鎖最高 atk）：一次鎖「攻擊力最高的 2 隻」集火壓制威脅最大的敵人（前版為 2 隨機目標）。凍結可疊加 frozen+=2（與 MAX hypnosis 同場會累加）、易傷 +2。⛔凍結硬上限 3＝防再生王 immortal hang（閉環鐵律：單怪 frozen 必須 ≤3；freeze cd=3＝放招間隔 4 > 上限 3，BOSS 每回合 -1 必解凍行動，鎖最高 atk 不破此閉環）；易傷無上限照疊餵 Nova。⚠️鎖最高 atk＝對單體高攻 BOSS 會穩定凍住，待 Max playtest 確認不過強
+    case 'freeze': { const _tgts=alive(foeSide).slice().sort((a,b)=>(b.atk||0)-(a.atk||0)).slice(0,2); for(const tgt of _tgts){ tgt.frozen=Math.min(3,(tgt.frozen||0)+2); bumpVuln(tgt,2,4); auraOn(tgt,'rgba(120,180,255,.6)'); fxOn(tgt,'❄️'); pop(tgt,'❄️凍結','miss'); } if(_tgts.length) log(`　❄️ 凍結攻擊最高的 ${_tgts.length} 個敵人＋易傷 ×2`,'sk');   // ⛔ Max 鐵律（2026-06-07 反轉舊 decision→改鎖最高 atk）：一次鎖「攻擊力最高的 2 隻」集火壓制威脅最大的敵人（前版為 2 隨機目標）。凍結可疊加 frozen+=2（與 MAX hypnosis 同場會累加）、易傷 +2。⛔凍結硬上限 3＝防再生王 immortal hang（閉環鐵律：單怪 frozen 必須 ≤3；freeze cd=3＝放招間隔 4 > 上限 3，BOSS 每回合 -1 必解凍行動，鎖最高 atk 不破此閉環）；易傷無上限照疊餵 Nova。⚠️鎖最高 atk＝對單體高攻 BOSS 會穩定凍住，待 Max playtest 確認不過強
       // 冰霜 Nova（岱華的對群解）：以全場易傷總層數放 AoE，疊越多易傷越痛，再吃各敵自身易傷加成（雙重 scaling）。
       // 🔧 首要旋鈕：每層 2.2% maxHp（0.022，2026-06-07 自 0.018「微提高」上修），隨全場易傷總層數放大。totalVuln 來源＝MAX 全場(每隻+1)×隻數 + 岱華鎖最高 atk 2 隻各 +2 + 嘉彧 fallback。嫌弱↑0.026、嫌強↓0.018。待 Max playtest。
       const totalVuln=alive(foeSide).reduce((s,f)=>s+(f.vuln||0),0);
@@ -726,7 +729,7 @@ async function useSkill(u, ownSide, foeSide){
       break; }
     case 'heal':   { const cand=alive(ownSide).filter(a=>a.id!=='helper'); const t=cand.sort((a,b)=>a.hp/a.maxHp-b.hp/b.maxHp)[0]; if(t){const h=Math.round(t.maxHp*0.5); t.hp=Math.min(t.maxHp,t.hp+h); auraOn(t,'rgba(74,208,125,.5)'); fxOn(t,'➕'); pop(t,'+'+h,'heal'); log(`　💧 治療 ${t.emoji} ${t.name} +${h}`,'he'); cand.forEach(a=>{ if(a!==t){ const hh=Math.round(a.maxHp*0.12); a.hp=Math.min(a.maxHp,a.hp+hh); if(hh>0){fxOn(a,'➕'); pop(a,'+'+hh,'heal');} } });} break; }   // 主補 50% + 全隊小補 12%（補師流續命引擎）
     case 'empower': alive(ownSide).forEach(a=>{a.rally=2; a.crit=Math.min(0.9,(a.crit||0)+0.22); auraOn(a,'rgba(201,169,110,.5)'); fxOn(a,'📈');}); log(`　📈 全隊 攻擊↑（數回合）、爆擊率永久↑`,'sk'); break;
-    case 'dodge':  alive(ownSide).forEach(a=>{a.dodgeP=0.7; a.dodgeT=3; auraOn(a,'rgba(201,169,110,.55)'); fxOn(a,'🎯');}); log(`　🎯 全隊預判：3 回合內每次受擊 70% 機率閃避`,'sk'); break;   // Max playtest：50%→70%（Lynn 太不穩定；坦法已有新選擇 max+岱華，不怕配 Joce 過強）
+    case 'dodge':  alive(ownSide).forEach(a=>{a.dodgeP=Math.min(0.9,(a.dodgeP||0)+0.7); a.dodgeT=Math.max(a.dodgeT||0,3); auraOn(a,'rgba(201,169,110,.55)'); fxOn(a,'🎯');}); log(`　🎯 全隊預判：3 回合內每次受擊 70% 機率閃避（與橘貓焦點可疊、封頂 90%）`,'sk'); break;   // ⭐改加法封頂 0.9：可與 focus 疊到幾乎必閃   // Max playtest：50%→70%（Lynn 太不穩定；坦法已有新選擇 max+岱華，不怕配 Joce 過強）
     case 'summon': {
       allies = allies.filter(a=>!(a.id==='helper' && !a.alive));            // 清掉死掉的小雞
       if(allies.filter(a=>a.id==='helper').length < 3){                     // 場上最多 3 隻（還原）
@@ -736,9 +739,10 @@ async function useSkill(u, ownSide, foeSide){
       buildStage(); fxOn(u,'🎁'); break; }
     case 'assassinate': for(let i=0;i<3;i++){ const fs=alive(foeSide); if(!fs.length)break; fs.sort((a,b)=>a.hp-b.hp); await basicAttack(u,[fs[i%fs.length]],0.85); await sleep(110);} break;   // 連擊掃 3 個不同敵人
     case 'corrode': { await basicAttack(u,foeSide,1); alive(foeSide).forEach(t=>{ t.poison=(t.poison||0)+3; t.poisonT=Math.max(t.poisonT||0,4); auraOn(t,'rgba(150,220,120,.5)'); fxOn(t,'☠️'); }); log(`　☠️ 蝕刻液濺到全場，全體中毒（持續疊層、會蔓延）`,'sk'); break; }
-    case 'hypnosis': alive(foeSide).forEach(f=>{ f.frozen=Math.max(f.frozen,1); f.vuln=(f.vuln||0)+1; f.vulnT=Math.max(f.vulnT||0,5); auraOn(f,'rgba(155,109,214,.6)'); fxOn(f,'🌀'); });   // ⛔ Max 鐵律：凍 1＋易傷 +1＋治癒（cd=1 每 2 回合放）。凍 1 < 放招間隔 2 ＝必留 1 回合 gap、不永久凍結（這就是 cd 能=1 的原因；上個 session 堅持凍 2 才被迫 cd2）。閉環命脈 frozen≤3 仍守（這裡只 1）。全場可疊易傷靠頻繁放疊量餵岱華 Nova
+    case 'hypnosis': alive(foeSide).forEach(f=>{ f.frozen=Math.min(3,(f.frozen||0)+2); bumpVuln(f,2,5); auraOn(f,'rgba(155,109,214,.6)'); fxOn(f,'🌀'); });   // ⛔ Max 鐵律：凍 1＋易傷 +1＋治癒（cd=1 每 2 回合放）。凍 1 < 放招間隔 2 ＝必留 1 回合 gap、不永久凍結（這就是 cd 能=1 的原因；上個 session 堅持凍 2 才被迫 cd2）。閉環命脈 frozen≤3 仍守（這裡只 1）。全場可疊易傷靠頻繁放疊量餵岱華 Nova
       // Max 一次性全隊小自癒：療癒 8%（明顯低於孟弦主補 50%／欣芸再生 13%×4，不搶補師定位）
-      alive(ownSide).forEach(a=>{ const h=Math.round(a.maxHp*0.08); if(h>0 && a.hp<a.maxHp){ a.hp=Math.min(a.maxHp,a.hp+h); fxOn(a,'➕'); pop(a,'+'+h,'heal'); } }); log(`　🌀 全場催眠！全場罰站 1 回合＋易傷 +1（可疊），全隊回 8%`,'sk'); break;
+      alive(ownSide).forEach(a=>{ const h=Math.round(a.maxHp*0.08); if(h>0 && a.hp<a.maxHp){ a.hp=Math.min(a.maxHp,a.hp+h); fxOn(a,'➕'); pop(a,'+'+h,'heal'); } }); log(`　🌀 全場催眠！全場罰站＋易傷 +2（可疊、cd2 慢但每發更重），全隊回 8%`,'sk'); break;
+    case 'focus': { u.focus=3; u.dodgeP=Math.min(0.9,(u.dodgeP||0)+0.7); u.dodgeT=Math.max(u.dodgeT||0,3); auraOn(u,'rgba(201,169,110,.6)'); fxOn(u,'🎯'); pop(u,'焦點！','miss'); log(`　🎯 ${u.emoji} ${u.name} 吸引全場火力、自身 70% 閃避；打牠的敵人都會被疊易傷（沒命中也算）`,'sk'); break; }   // ⭐橘貓「全場焦點」：嘲諷吸火＋高閃避坦；攻擊者疊易傷在 enemyTurn。dodge 加法封頂 0.9＝可與 Lynn 疊到幾乎必閃，但留 10% 命中保證終止（真 1.0 會卡死再生王）
     case 'overclock': { const t=alive(foeSide).sort((a,b)=>b.maxHp-a.maxHp)[0]; if(t){ await basicAttack(u,[t],2.2); shake(true); if(t.alive){ const bonus=Math.round(t.maxHp*0.15*(frenzyActive?2:1)); fxOn(t,'⚡'); await dealDamage(t, bonus, {big:true,crit:true}); } log(`　⚡ 超頻過載！鎖定最硬目標，爆發＋其最大血量 15%`,'sk'); } u.overheat=true; break; }   // 😈 frenzy：超頻 maxHp%爆發額外吃攻擊×2   // 單體 anti-boss 核彈：鎖最高maxHp、×2.2＋敵maxHp 15%；與 splash(AoE)/detonate(引爆) 區隔
     case 'regen': alive(ownSide).forEach(a=>{ a.regen=Math.round(a.maxHp*0.13); a.regenT=4; auraOn(a,'rgba(94,200,160,.5)'); fxOn(a,'➕'); }); log(`　➕ 全隊再生（4 回合）`,'sk'); break;   // 8%→13%/回、3→4 回合（再生流續命）
     case 'armorbreak': {
@@ -749,7 +753,7 @@ async function useSkill(u, ownSide, foeSide){
       while(chain<12){ const v=alive(foeSide).find(f=>f.hp>0 && f.hp < f.maxHp*exThrOf(f)); if(!v) break; const rem=Math.max(0,Math.round(v.hp)); v.hp=0; v.alive=false; impactFx(v,'💥'); pop(v,'拆解！','crit'); sfx('ko'); if(v.side==='foe'){ killHeal(); spreadPoison(v); } for(const o of alive(foeSide)){ fxOn(o,'🔩'); await dealDamage(o, Math.max(rem, Math.round(o.maxHp*AOE_PCT)), {big:true}); } chain++; }   // 連鎖斬殺：殘血即死 → 以 max(剩餘血量, 各敵maxHp×12%) AoE 砸全場 → 被打進斬殺線者接著斬 → 連鎖（cap 12 防爆）
       if(chain>0){ shake(true); log(`　🔩 精密拆解連鎖！連環斬殺 ${chain} 隻`,'sk'); }
       await basicAttack(u,foeSide,1.4);   // 普攻收尾（A 案：移到斬殺之後；沒有斬殺目標時這就是「重擊一個敵人」的本體）
-      if(chain===0){ const t=lowestHp(foeSide); if(t){ t.vuln=(t.vuln||0)+2; t.vulnT=Math.max(t.vulnT||0,4); auraOn(t,'rgba(138,143,158,.6)'); fxOn(t,'🔩'); log(`　🔩 ${t.emoji} ${t.name} 易傷×${t.vuln}`,'sk'); } }
+      if(chain===0){ const t=lowestHp(foeSide); if(t){ bumpVuln(t,2,4); auraOn(t,'rgba(138,143,158,.6)'); fxOn(t,'🔩'); log(`　🔩 ${t.emoji} ${t.name} 易傷×${t.vuln}`,'sk'); } }
       break; }
     case 'splash': { const main=lowestHp(foeSide); const dealt=await basicAttack(u,foeSide,1.8); if(dealt>0){ for(const f of alive(foeSide)){ if(f===main)continue; fxOn(f,'🌊'); await dealDamage(f, Math.round(dealt*0.5), {}); } } log(`　🌊 濺射！主擊一半波及全場`,'sk'); break; }   // 擴散：主擊傷害50%濺全體、隨爆擊放大
     case 'detonate': { const main=lowestHp(foeSide); await basicAttack(u,foeSide,1.5); if(main && !main.alive){ const boom=Math.round(main.maxHp*0.3); shake(true); for(const f of alive(foeSide)){ fxOn(f,'🧨'); await dealDamage(f, boom, {big:true}); } log(`　🧨 ${main.emoji} 被引爆，殘骸衝擊波炸全場`,'sk'); } break; }   // 引爆：擊殺則以該敵 maxHp 30% AoE
@@ -783,7 +787,7 @@ async function endOfRound(){
     // 再生王 niche：止血式自癒（吃已失血量的%、越受傷回越多）。此塊在毒 tic 之前 → (u.poison||0)<=0 讀的是「本回合身上還有沒有毒」(毒層數要到下面毒 tic 用盡才 --)，故中毒＝自癒整段跳過＝完全失效（不是減量）。凍結不檢查＝被凍/被催眠的王照樣自癒（控制是 niche#3 的活，再生王只逼毒）；但若被凍則自癒砍半，保證任何 CC 組合都無法讓自癒王完全打不死（終止安全網）
     if((u.selfHeal||0)>0 && u.side==='foe'){
       if((u.poison||0)<=0){
-        if(u.hp<u.maxHp){ let h=Math.max(Math.round((u.maxHp-u.hp)*u.selfHeal), Math.round(u.maxHp*0.06)); if(u.frozen>0)h=Math.round(h*0.5); h=Math.min(h,u.maxHp-u.hp); if(h>0){ u.hp+=h; fxOn(u,'🩸'); pop(u,'+'+h,'heal'); any=true; } }
+        if(u.hp<u.maxHp){ let h=Math.max(Math.round((u.maxHp-u.hp)*u.selfHeal), Math.round(u.maxHp*0.06)); if(u.frozen>0)h=0; h=Math.min(h,u.maxHp-u.hp); if(h>0){ u.hp+=h; fxOn(u,'🩸'); pop(u,'+'+h,'heal'); any=true; } }   // ⭐2026-06-14：被凍時自癒完全關閉（舊砍半會漏鎖、被沙盤證實）＝終止安全網不漏。凍結＝結凍＝不能再生，凍/毒皆完全失效
       } else if(u.hp<u.maxHp){ fxOn(u,'🚫'); pop(u,'🚫癒','miss'); }   // 中毒→自癒完全失效（玩家學到機制；滿血不 spam）
     }
     if(u.regen>0 && u.regenT>0){ const h=u.regen; u.hp=Math.min(u.maxHp,u.hp+h); u.regenT--; if(u.regenT<=0)u.regen=0; fxOn(u,'➕'); pop(u,'+'+h,'heal'); any=true; }
@@ -797,7 +801,7 @@ async function endOfRound(){
     if(u.frozen>0) u.frozen--;
     if(u.dodgeT>0){ u.dodgeT--; if(u.dodgeT<=0)u.dodgeP=0; }
     if(u.side==='foe') u.enrage=(u.enrage||0)+1;   // 激怒：一波拖越久、怪攻擊越高（破龜縮 DPS check）
-    if(u.side==='ally'){ if(u.rally>0){ u.rally--; if(u.rally===0)pop(u,'攻↑結束','miss'); } if(u.taunt>0)u.taunt--; }
+    if(u.side==='ally'){ if(u.rally>0){ u.rally--; if(u.rally===0)pop(u,'攻↑結束','miss'); } if(u.taunt>0)u.taunt--; if(u.focus>0)u.focus--; }
   }
   if(foes.some(f=>f.alive && (f.enrage||0)===3)) log('　😡 敵人激怒了！清場太慢會被越打越痛，加快輸出',' dm');
   paintAll(); if(any){ sfx('poison'); await sleep(280); }
@@ -821,8 +825,9 @@ async function enemyTurn(u){
   if(await tickFrozen(u)) return;
   if(!u.alive||alive(allies).length===0) return;
   actFx(u);
-  const taunters=alive(allies).filter(a=>a.taunt>0);
-  const t=taunters.length?taunters[0]:rand(allies);   // 有人嘲諷就打他（否則隨機）；嘲諷的價值＝把火力從後排硬拉到坦身上
+  const drawers=alive(allies).filter(a=>a.taunt>0 || a.focus>0);   // 嘲諷 or 焦點 都吸火
+  const t=drawers.length?drawers[0]:rand(allies);   // 有人嘲諷/焦點就打他（否則隨機）；把火力從後排硬拉到坦身上
+  if(t.focus>0){ bumpVuln(u,1,4); fxOn(u,'🎯'); }   // ⭐攻擊焦點目標→攻擊者疊一層易傷（在 dealDamage 前＝沒命中/被閃也算，「專注被吸走」）
   log(`${u.emoji} ${u.name} 攻擊 ${t.emoji} ${t.name}`,'dm');
   lungeFx(u); await sleep(165);
   const rage=1+Math.max(0,(u.enrage||0)-2)*0.12;   // 激怒：第 4 回合起每回合 +12% 攻擊（清不掉就被輾＝逼你有輸出）
