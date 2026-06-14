@@ -675,7 +675,7 @@ function alive(arr){ return arr.filter(u=>u.alive); }
 function lowestHp(arr){ return alive(arr).sort((a,b)=>a.hp-b.hp)[0]; }
 function rand(arr){ const a=alive(arr); return a[Math.floor(Math.random()*a.length)]; }
 const VULN_CAP=6;   // ⭐易傷層數硬上限：封頂傷害＋冰霜 Nova 滾雪球（防雙控無限）；≥6 保重甲仍可被 6 層削穿
-const REGEN_STALL_LOSE=20;   // 🩸 再生王僵局判輸：再生 Bug 為場上最後一隻時、無毒、又連 N 回合打不出新低血（輸出贏不過回血）→ 判輸＋提示用毒。N=20（只算「卡在單獨再生王」的回合、清小怪不算）
+const REGEN_STALL_LOSE=20;   // 🩸 再生王僵局判輸：再生 Bug 為最後一隻、無毒、整整 N 回合視窗內 hp 都沒淨下降（打不動回血）→ 判輸＋提示用毒。N=20（只算卡單獨再生王；用視窗起點比、非歷史最低＝不誤判慢贏）
 function bumpVuln(u,n,t){ u.vuln=Math.min(VULN_CAP,(u.vuln||0)+n); u.vulnT=Math.max(u.vulnT||0,t); }
 
 async function dealDamage(target, amount, opt={}){
@@ -931,14 +931,17 @@ async function runBattle(){
       }
       // 回合結束：全場狀態統一結算（毒/再生/易傷/凍結倒數/rally/taunt 一次跳完）
       await endOfRound();
-      // 🩸 再生王僵局判輸：⛔只在「再生 Bug 是場上最後一隻」時才算（清小怪階段不計，否則前面小怪沒清完就誤判）；無毒、連 N 回合打不出新低血（輸出贏不過回血）→ 判輸＋提示用毒
-      const _foes=alive(foes); const _rg=(_foes.length===1 && (_foes[0].selfHeal||0)>0)?_foes[0]:null;
-      if(_rg){
-        if((_rg.poison||0)>0){ _rg._rgStall=0; }                                   // 有毒＝有解，不判
-        else { if(_rg._rgMin==null)_rg._rgMin=_rg.hp;
-          if(_rg.hp < _rg._rgMin-_rg.maxHp*0.005){ _rg._rgMin=_rg.hp; _rg._rgStall=0; }   // 有實質進度（>0.5% 新低）就重置
-          else _rg._rgStall=(_rg._rgStall||0)+1; }
-        if((_rg._rgStall||0)>=REGEN_STALL_LOSE){ log(`　🩸 再生 Bug 回血快過你的輸出、隊上又沒有毒——僵住了。`,'ko'); return endBattle(curWave-1, '💡 中毒能讓「再生 Bug」完全停止回血。帶一個會下毒的角色（Matt 蝕刻），或幫爆擊隊點「淬毒爆擊」詞條，再來挑戰！'); }
+      // 🩸 再生王僵局判輸：只在「再生 Bug 是最後一隻」且無毒時算。用「N 回合視窗」比血量——整整 N 回合 hp 都沒淨下降（打不動牠回血）才判輸。
+      // ⛔ 用視窗起點(_rgSnap)比、不用歷史最低值：否則早期一次幸運爆發把血打很低、之後從較高均衡慢慢磨時會被誤判「沒進度」＝兩次莫名判輸的真因。只要這 N 回合血有淨掉(在贏)就開新視窗、不判。
+      const _rgBoss=alive(foes).find(f=>(f.selfHeal||0)>0);
+      if(_rgBoss){
+        if(!(alive(foes).length===1 && (_rgBoss.poison||0)<=0)){ _rgBoss._rgSnap=null; _rgBoss._rgT=0; }   // 還有小怪、或有毒＝不算、重置視窗
+        else { if(_rgBoss._rgSnap==null){ _rgBoss._rgSnap=_rgBoss.hp; _rgBoss._rgT=0; }
+          if(++_rgBoss._rgT>=REGEN_STALL_LOSE){
+            if(_rgBoss.hp>=_rgBoss._rgSnap){ log(`　🩸 再生 Bug 回血快過你的輸出、隊上又沒有毒——${REGEN_STALL_LOSE} 回合打不動牠。`,'ko'); return endBattle(curWave-1, '💡 中毒能讓「再生 Bug」完全停止回血。帶一個會下毒的角色（Matt 蝕刻），或幫爆擊隊點「淬毒爆擊」詞條，再來挑戰！'); }
+            else { _rgBoss._rgSnap=_rgBoss.hp; _rgBoss._rgT=0; }   // 這 N 回合有把血淨打低＝在贏→開新視窗繼續打（不判）
+          }
+        }
       }
     }
     // 😈 frenzy 清場復活：foes 全滅（含同歸於盡）且 ≤N 回合 → 全隊死者滿血復活（在判負檢查前、同歸於盡會被救回續戰）。窗口 10 ＝反龜甲閘（賭輸則 10 回合內早被清光、摸不到復活；賭贏快速清場才換到容錯）
