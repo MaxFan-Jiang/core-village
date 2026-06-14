@@ -343,7 +343,7 @@ const SKILLS = {
   freeze:     {name:"罰站",     icon:"❄️", desc:"凍結攻擊最高的 2 個敵人並疊易傷，再放冰霜 Nova 轟全場", kind:"util"},
   assassinate:{name:"自動化連擊",icon:"🗡️", desc:"連擊最多 3 個敵人；爆擊疊『殺意』提升爆擊率，爆率滿後殺意轉攻擊力", kind:"atk"},
   dodge:      {name:"分鏡預判", icon:"🎯", desc:"全隊 3 回合內、每次受擊 70% 機率閃避（與『全場焦點』可疊、封頂 90%）", kind:"util"},
-  focus:      {name:"全場焦點", icon:"🐯", desc:"永久吸引全場敵人攻擊自己＋自身 70% 閃避（無空窗）；攻擊牠的敵人疊一層易傷（沒命中也算）", kind:"util"},
+  focus:      {name:"全場焦點", icon:"🐯", desc:"被動永久 70% 閃避（無空窗）；放招吸引全場火力 3 回合、打牠的敵人疊一層易傷（沒命中也算）", kind:"util"},
   heal:       {name:"散熱模組", icon:"💧", desc:"大幅治療血量最低的隊友，並小補全隊", kind:"util"},
   summon:     {name:"檔期促銷", icon:"🎁", desc:"召喚一個援軍小幫手", kind:"util"},
   corrode:    {name:"蝕刻",     icon:"☠️", desc:"攻擊，並讓全體敵人中毒，可疊層（中毒敵死亡會蔓延）", kind:"atk"},
@@ -509,7 +509,7 @@ function mkAlly(v){
   return {...v, side:'ally', maxHp:v.hp, hp:v.hp, baseHp:v.hp, baseAtk:v.atk, atk:v.atk,
     crit:(typeof v.crit==='number'?v.crit:0.08), critDmg:1.9, bloodlust:0,
     poison:0, poisonT:0, frozen:0, vuln:0, vulnT:0, regen:0, regenT:0,
-    cdLeft:0, cd:(CD_BY_SKILL[v.skill] ?? 3), shield:0, dodgeP:0, dodgeT:0, overheat:false, rally:0, taunt:0, alive:true};
+    cdLeft:0, cd:(CD_BY_SKILL[v.skill] ?? 3), shield:0, dodgeP:0, dodgeT:0, pDodge:(v.skill==='focus'?0.7:0), overheat:false, rally:0, taunt:0, focus:0, alive:true};   // pDodge＝被動永久閃避（橘貓固定 70%、不靠放招）
 }
 /* 無盡衝波：敵人隨波數變強，每 5 波一個魔王 */
 const FOE_POOL = [
@@ -667,7 +667,8 @@ function bumpVuln(u,n,t){ u.vuln=Math.min(VULN_CAP,(u.vuln||0)+n); u.vulnT=Math.
 
 async function dealDamage(target, amount, opt={}){
   if(!target||!target.alive) return 0;
-  if(target.dodgeP>0 && Math.random()<target.dodgeP){ pop(target,'閃避','miss'); fxOn(target,'🎯'); log(`　${target.emoji} ${target.name} <span class="sk">閃避</span>了攻擊`); paintAll(); return 0; }   // 機率閃避（持續數回合、每次受擊判定、不消耗）
+  const _dodge=Math.min(0.9,(target.pDodge||0)+(target.dodgeP||0));   // 被動閃避(橘貓固定0.7)＋計時閃避(Lynn)相加、封頂 0.9（留 10% 命中保證終止）
+  if(_dodge>0 && Math.random()<_dodge){ pop(target,'閃避','miss'); fxOn(target,'🎯'); log(`　${target.emoji} ${target.name} <span class="sk">閃避</span>了攻擊`); paintAll(); return 0; }
   let dmg=Math.round(amount * (target.vuln>0?(1+(0.20+(perks.vulnBonus||0))*target.vuln):1));   // ⭐每層 0.15→0.20（前期有感）；層數封頂 VULN_CAP（後期不爆）
   if(target.taunt>0) dmg=Math.round(dmg*0.5);   // 嘲諷中的坦克：減傷 50%
   if(perks.dmgReduce>0 && target.side==='ally') dmg=Math.round(dmg*(1-perks.dmgReduce));   // 銅牆 boon：全隊 %減傷（隨疊成長、追得上敵人 %攻擊）
@@ -744,7 +745,7 @@ async function useSkill(u, ownSide, foeSide){
     case 'hypnosis': alive(foeSide).forEach(f=>{ f.frozen=Math.max(f.frozen,1); bumpVuln(f,1,5); auraOn(f,'rgba(155,109,214,.6)'); fxOn(f,'🌀'); });   // 還原 cd1：凍 1（間隔2>1 留 gap）＋易傷 +1   // ⛔ Max 鐵律：凍 1＋易傷 +1＋治癒（cd=1 每 2 回合放）。凍 1 < 放招間隔 2 ＝必留 1 回合 gap、不永久凍結（這就是 cd 能=1 的原因；上個 session 堅持凍 2 才被迫 cd2）。閉環命脈 frozen≤3 仍守（這裡只 1）。全場可疊易傷靠頻繁放疊量餵岱華 Nova
       // Max 一次性全隊小自癒：療癒 8%（明顯低於孟弦主補 50%／欣芸再生 13%×4，不搶補師定位）
       alive(ownSide).forEach(a=>{ const h=Math.round(a.maxHp*0.08); if(h>0 && a.hp<a.maxHp){ a.hp=Math.min(a.maxHp,a.hp+h); fxOn(a,'➕'); pop(a,'+'+h,'heal'); } }); log(`　🌀 全場催眠！全場罰站 1 回合＋易傷 +1（可疊），全隊回 8%`,'sk'); break;
-    case 'focus': { u.focus=99; u.dodgeP=Math.max(u.dodgeP||0,0.7); u.dodgeT=99; auraOn(u,'rgba(201,169,110,.6)'); fxOn(u,'🎯'); pop(u,'焦點！','miss'); log(`　🎯 ${u.emoji} ${u.name} 永久吸引全場火力、自身 70% 閃避（無空窗）；打牠的敵人都會被疊易傷（沒命中也算）`,'sk'); break; }   // ⭐橘貓「全場焦點」：嘲諷+閃避「永久無空窗」（focus/dodgeT=99 每放刷新＝cd 沒到也不會變回軟皮）；機制＝閃避（與 Joce 減傷、護甲護盾三種不同坦法）；Lynn dodge 加法可疊到 0.9
+    case 'focus': { u.focus=3; auraOn(u,'rgba(201,169,110,.6)'); fxOn(u,'🎯'); pop(u,'焦點！','miss'); log(`　🎯 ${u.emoji} ${u.name} 吸引全場火力 3 回合，打牠的敵人都會被疊易傷（沒命中也算）`,'sk'); break; }   // ⭐橘貓「全場焦點」：放招＝吸嘲 3 回合＋疊易傷（有 cd 節奏）；閃避是被動永久 70%（mkAlly pDodge）＝空窗也不會變軟皮。機制＝閃避（與 Joce 減傷、護甲護盾三種不同坦法）
     case 'overclock': { const t=alive(foeSide).sort((a,b)=>b.maxHp-a.maxHp)[0]; if(t){ let total=(await basicAttack(u,[t],2.5))||0; shake(true); if(t.alive){ const bonus=Math.round(t.maxHp*0.25*(frenzyActive?2:1)); fxOn(t,'⚡'); total+=(await dealDamage(t, bonus, {big:true,crit:true}))||0; } const sp=Math.round(total*0.25); if(sp>0){ for(const f of alive(foeSide)){ if(f===t)continue; fxOn(f,'⚡'); await dealDamage(f, sp, {}); } } log(`　⚡ 超頻過載！鎖最硬目標 ×2.5＋其最大血量 25%（可爆），傷害 25% 濺射全場`,'sk'); } u.overheat=true; break; }   // ⭐2.2→2.5、15%→25%maxHp、+濺射全場25%（打沒易傷的重甲會被吃掉＝有取捨）；過熱不動   // 😈 frenzy：超頻 maxHp%爆發額外吃攻擊×2   // 單體 anti-boss 核彈：鎖最高maxHp、×2.2＋敵maxHp 15%；與 splash(AoE)/detonate(引爆) 區隔
     case 'regen': alive(ownSide).forEach(a=>{ a.regen=Math.round(a.maxHp*0.13); a.regenT=4; auraOn(a,'rgba(94,200,160,.5)'); fxOn(a,'➕'); }); log(`　➕ 全隊再生（4 回合）`,'sk'); break;   // 8%→13%/回、3→4 回合（再生流續命）
     case 'armorbreak': {
