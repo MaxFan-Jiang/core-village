@@ -681,7 +681,7 @@ async function dealDamage(target, amount, opt={}){
   if(!target||!target.alive) return 0;
   const _dodge=Math.min(0.9,(target.pDodge||0)+(target.dodgeP||0));   // 被動閃避(橘貓固定0.7)＋計時閃避(Lynn)相加、封頂 0.9（留 10% 命中保證終止）
   if(_dodge>0 && Math.random()<_dodge){ pop(target,'閃避','miss'); fxOn(target,'🎯'); log(`　${target.emoji} ${target.name} <span class="sk">閃避</span>了攻擊`); paintAll(); return 0; }
-  let dmg=opt.flat?Math.round(amount):Math.round(amount * (target.vuln>0?(1+(0.20+(perks.vulnBonus||0))*target.vuln):1));   // flat＝跳過易傷放大（越噹越大力的「上次輸出」固定加成用，避免易傷重複累乘＝指數爆）；否則每層 +0.20、封頂 VULN_CAP
+  let dmg=Math.round(amount * (target.vuln>0?(1+(0.20+(perks.vulnBonus||0))*target.vuln):1));   // ⭐每層 +0.20（前期有感）；層數封頂 VULN_CAP（後期不爆）
   if(target.taunt>0) dmg=Math.round(dmg*0.5);   // 嘲諷中的坦克：減傷 50%
   if(perks.dmgReduce>0 && target.side==='ally') dmg=Math.round(dmg*(1-perks.dmgReduce));   // 銅牆 boon：全隊 %減傷（隨疊成長、追得上敵人 %攻擊）
   if(target.armor>0){ const eff=Math.max(0,target.armor-0.12*(target.vuln||0)); dmg=Math.round(dmg*(1-eff)); }   // 重甲怪：高 %減傷，每層易傷削穿 0.12（逼易傷流才打得動）
@@ -715,12 +715,10 @@ async function basicAttack(u, foesArr, mult=1, copt={}){
   const cdmg=(u.critDmg||1.8)+(perks.critDmg||0);
   log(`${u.emoji} <b>${u.name}</b> 攻擊 ${t.emoji} ${t.name}${crit?'（爆擊！）':''}`,'dm');
   lungeFx(u); await sleep(175);
-  const dealt=await dealDamage(t, base*(crit?cdmg:1), {crit, big:mult>1});   // 正常普攻（吃一次易傷）
-  let echoDealt=0;
-  if(u.skill==='echo'){   // ⛏️ 越噹越大力＝純加法：把「上次的總輸出」當 flat 固定傷害加上去（flat＝不再吃易傷，避免易傷重複累乘＝指數爆）。D_k = 本次普攻 + 上次總輸出，線性、不相乘
-    if((u.echoPrev||0)>0 && t.alive){ echoDealt=(await dealDamage(t, u.echoPrev, {flat:true, big:true}))||0; if(echoDealt>0)fxOn(u,'⛏️'); }
-    u.echoPrev=(dealt||0)+echoDealt;   // 本次總輸出（下波 buildStage 時歸零）
-  }
+  let _swing=base*(crit?cdmg:1);
+  if(u.skill==='echo'){ _swing+=(u.echoPrev||0); }   // ⛏️ 越噹越大力：上次的傷害「加進這次的攻擊力」＝跟著一起吃易傷（橘貓/岱華易傷越高、滾越兇＝特色）
+  const dealt=await dealDamage(t, _swing, {crit, big:mult>1||(u.skill==='echo'&&(u.echoPrev||0)>0)});
+  if(u.skill==='echo'){ u.echoPrev=_swing; if(dealt>0)fxOn(u,'⛏️'); }   // ⭐存「吃易傷前的 _swing」(不是 dealt)＝易傷只乘一次、線性不指數；每波 buildStage 歸零
   // 吸血已移到 dealDamage（吃任何傷害＝普攻/技能/AoE 都回，補最低血隊友）
   if(crit){
     if(u.skill==='assassinate'){ u.bloodlust=(u.bloodlust||0)+1; fxOn(u,'🗡️'); }
@@ -729,7 +727,7 @@ async function basicAttack(u, foesArr, mult=1, copt={}){
     if(perks.critChain && !copt.chained && alive(foesArr).length>0){ await sleep(90); await basicAttack(u, foesArr, mult*0.7, {chained:true}); }
   }
   await sleep(105);
-  return (dealt||0)+echoDealt;   // 回傳本次總輸出（含越噹越大力的 flat 加成；給 splash 濺射計算用）
+  return dealt;   // 回傳主擊實際傷害（給 splash 濺射計算用）
 }
 
 async function useSkill(u, ownSide, foeSide){
@@ -758,7 +756,7 @@ async function useSkill(u, ownSide, foeSide){
         log(`　🎁 召喚援軍 ${helper.emoji} ${helper.name}`,'he');
       } else { log(`　🎁 小幫手已經滿場了`,'he'); }
       buildStage(); fxOn(u,'🎁'); break; }
-    case 'assassinate': for(let i=0;i<3;i++){ const fs=alive(foeSide); if(!fs.length)break; fs.sort((a,b)=>a.hp-b.hp); await basicAttack(u,[fs[i%fs.length]],0.85); await sleep(110);} break;   // 連擊掃 3 個不同敵人
+    case 'assassinate': for(let i=0;i<3;i++){ const fs=alive(foeSide); if(!fs.length)break; fs.sort((a,b)=>a.hp-b.hp); await basicAttack(u,[fs[i%fs.length]],0.85); await sleep(110);} break;   // 連擊掃 3 個不同敵人（多段＋高爆＝點「淬毒爆擊 critPoison」詞條後快速疊毒＝中後期轉毒；native 不直接給毒）
     case 'corrode': { await basicAttack(u,foeSide,1); alive(foeSide).forEach(t=>{ t.poison=(t.poison||0)+3; t.cPoison=(t.cPoison||0)+3; t.poisonT=Math.max(t.poisonT||0,4); auraOn(t,'rgba(150,220,120,.5)'); fxOn(t,'☠️'); }); log(`　☠️ 蝕刻液濺到全場，全體中毒（持續疊層、會蔓延）`,'sk'); break; }   // corrode 毒＝可擴散 cPoison
     case 'hypnosis': alive(foeSide).forEach(f=>{ f.frozen=Math.max(f.frozen,1); bumpVuln(f,1,5); auraOn(f,'rgba(155,109,214,.6)'); fxOn(f,'🌀'); });   // 還原 cd1：凍 1（間隔2>1 留 gap）＋易傷 +1   // ⛔ Max 鐵律：凍 1＋易傷 +1＋治癒（cd=1 每 2 回合放）。凍 1 < 放招間隔 2 ＝必留 1 回合 gap、不永久凍結（這就是 cd 能=1 的原因；上個 session 堅持凍 2 才被迫 cd2）。閉環命脈 frozen≤3 仍守（這裡只 1）。全場可疊易傷靠頻繁放疊量餵岱華 Nova
       // Max 一次性全隊小自癒：療癒 8%（明顯低於孟弦主補 50%／欣芸再生 13%×4，不搶補師定位）
