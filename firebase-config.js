@@ -15,5 +15,5 @@ window.__LEADERBOARD_CONFIG__ = {
     messagingSenderId: "568230815678",
     appId: "1:568230815678:web:4d29f48393b3c91c227bef",
   },
-  collection: "village-scores",
+  collection: "village-scores-s1",   // S1 正式賽季（beta/s0 舊榜＝village-scores，已封存唯讀）
 };

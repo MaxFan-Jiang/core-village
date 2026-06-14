@@ -8,7 +8,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // beta/s0 封存：唯讀（可回顧、不再收新分；平衡大改前的舊榜）
     match /village-scores/{id} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
+
+    // S1 正式賽季：可讀、可新增一筆合法分數、不可改不可刪
+    match /village-scores-s1/{id} {
       allow read: if true;
       allow create: if isValidScore(request.resource.data);
       allow update, delete: if false;   // 分數送出後不可竄改
