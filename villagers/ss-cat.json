@@ -12,17 +12,18 @@
   "join": "閉上眼睛打開箱子。如果你覺得牠在，牠就在。",
   "sprite": {
     "grid": [
-      "..OO......OO.....",
-      ".OKKO....OKKO....",
-      ".OKKKKKKKKKKO..KO",
-      ".OKYYKKKKYYKO.KO.",
-      "OBBBBBBBBBBBBOK..",
-      "OBBBBBBBBBBBBO...",
-      "OBBBbBbBbBBBBO...",
-      "OBBBBBBBBBBBBO...",
-      ".OOOOOOOOOOOO...."
+      "..OO......OO....",
+      ".OKKO....OKKO...",
+      ".OKKKKKKKKKKO.KO",
+      ".OKYYKKKKYYKO.KO",
+      "OBBBBBBBBBBBBOK.",
+      "OBBBBBBBBBBBBO..",
+      "OBBBbBbBbBBBBO..",
+      "OBBBBBBBBBBBBO..",
+      ".OOOOOOOOOOOO..."
     ],
     "colors": {
+      "O": "#3a2a1a",
       "K": "#1a1a1a",
       "Y": "#d4a017",
       "B": "#c4956a",
