@@ -728,8 +728,8 @@ async function useSkill(u, ownSide, foeSide){
   await banner(sk.icon, `${u.name}　${sk.name}！`, sk.desc);
   log(`✦ ${u.emoji} <b>${u.name}</b> 發動 <span class="sk">${sk.icon} ${sk.name}</span>`,'sk');
   switch(u.skill){
-    case 'shield': alive(ownSide).forEach(a=>{a.shield+=26; auraOn(a,'rgba(94,200,224,.55)'); fxOn(a,'🛡️');}); break;
-    case 'taunt': { u.taunt=3; u.shield+=Math.round(u.maxHp*0.5); auraOn(u,'rgba(110,135,184,.65)'); fxOn(u,'🦺'); pop(u,'嘲諷！','miss'); log(`　🦺 ${u.emoji} ${u.name} 挺身嘲諷，火力都往她身上、且傷害砍半`,'sk'); break; }
+    case 'shield': alive(ownSide).forEach(a=>{a.shield=Math.max(a.shield||0,26); auraOn(a,'rgba(94,200,224,.55)'); fxOn(a,'🛡️');}); break;   // ⛔護盾不可疊（取最大）
+    case 'taunt': { u.taunt=3; u.shield=Math.max(u.shield||0,Math.round(u.maxHp*0.5)); auraOn(u,'rgba(110,135,184,.65)'); fxOn(u,'🦺'); pop(u,'嘲諷！','miss'); log(`　🦺 ${u.emoji} ${u.name} 挺身嘲諷，火力都往她身上、且傷害砍半`,'sk'); break; }   // ⛔Joce 護盾改不可疊（取最大、不再每次 +50%血累加＝斷「Joce 無限護甲」）；與蟲護甲共用 shield 欄位、取最大不相加
     case 'freeze': { const _tgts=alive(foeSide).slice().sort((a,b)=>(b.atk||0)-(a.atk||0)).slice(0,2); for(const tgt of _tgts){ tgt.frozen=Math.min(3,(tgt.frozen||0)+2); bumpVuln(tgt,2,4); auraOn(tgt,'rgba(120,180,255,.6)'); fxOn(tgt,'❄️'); pop(tgt,'❄️凍結','miss'); } if(_tgts.length) log(`　❄️ 凍結攻擊最高的 ${_tgts.length} 個敵人＋易傷 ×2`,'sk');   // ⛔ Max 鐵律（2026-06-07 反轉舊 decision→改鎖最高 atk）：一次鎖「攻擊力最高的 2 隻」集火壓制威脅最大的敵人（前版為 2 隨機目標）。凍結可疊加 frozen+=2（與 MAX hypnosis 同場會累加）、易傷 +2。⛔凍結硬上限 3＝防再生王 immortal hang（閉環鐵律：單怪 frozen 必須 ≤3；freeze cd=3＝放招間隔 4 > 上限 3，BOSS 每回合 -1 必解凍行動，鎖最高 atk 不破此閉環）；易傷無上限照疊餵 Nova。⚠️鎖最高 atk＝對單體高攻 BOSS 會穩定凍住，待 Max playtest 確認不過強
       // 冰霜 Nova（岱華的對群解）：以全場易傷總層數放 AoE，疊越多易傷越痛，再吃各敵自身易傷加成（雙重 scaling）。
       // 🔧 首要旋鈕：每層 2.2% maxHp（0.022，2026-06-07 自 0.018「微提高」上修），隨全場易傷總層數放大。totalVuln 來源＝MAX 全場(每隻+1)×隻數 + 岱華鎖最高 atk 2 隻各 +2 + 嘉彧 fallback。嫌弱↑0.026、嫌強↓0.018。待 Max playtest。
