@@ -504,7 +504,7 @@ $('#autoBtn').addEventListener('click',()=>{
 /* ---------- 建立戰鬥單位 ---------- */
 // 技能 CD（回合）平衡旋鈕：預設 3＝每 4 回合放一次。hypnosis=1＝每 2 回合放＝Max 放招最頻繁（凍1+易傷1+治癒1、靠次數疊量、餵岱華 Nova）。
 // ⛔ 鐵律：frozen 必須 < 放招間隔(=cd+1) 才有 gap、不永久凍結。hypnosis cd=1＝間隔 2＝凍結必須 ≤1（已設 Math.max(f,1)）。若把 hypnosis 凍結改回 2 又維持 cd=1＝永久凍結＝破閉環＋再生王零傷無限自癒，務必同動兩者。CD 留引擎碼、不放貢獻者 villagers/*.json。
-const CD_BY_SKILL = { hypnosis: 1, armorbreak: 2 };   // hypnosis cd1（Max 還他存在感）；armorbreak cd3→2（拆解放招太慢）
+const CD_BY_SKILL = { hypnosis: 1, armorbreak: 2, armor: 1 };   // hypnosis cd1；armorbreak cd2；armor cd1（護盾要常補才維持得住、否則太爛）
 function mkAlly(v){
   return {...v, side:'ally', maxHp:v.hp, hp:v.hp, baseHp:v.hp, baseAtk:v.atk, atk:v.atk,
     crit:(typeof v.crit==='number'?v.crit:0.08), critDmg:1.9, bloodlust:0,
@@ -551,9 +551,9 @@ function killHeal(){ if(perks.killHeal<=0) return; const list=alive(allies); lis
 // 毒蔓延：中毒的敵人死亡 → 毒囊破裂，把當前毒層數疊到其他所有存活敵人身上＝毒的「複利」。越多怪帶毒死、剩下的毒越濃（3→6→12→24…雪球）→ 群戰 AoE 滾雪球；但對單體 boss 無效（沒有其他怪可蔓延）＝與爆擊（單體強）區隔出毒的獨立身份。spreadFrac 為蔓延比例旋鈕（首版 1.0＝全額；嫌太 swingy 改 0.5 或只蔓延一隻）
 const POISON_SPREAD_FRAC=1.0;
 function spreadPoison(dead){
-  const layers=Math.round((dead.poison||0)*POISON_SPREAD_FRAC); if(layers<=0) return;
+  const layers=Math.round((dead.cPoison||0)*POISON_SPREAD_FRAC); if(layers<=0) return;   // ⭐只擴散「可擴散毒」(corrode/Matt 來源)，爆擊疊的毒(淬毒爆擊)不算 cPoison＝不蔓延
   const others=alive(foes).filter(f=>f!==dead); if(!others.length) return;
-  others.forEach(f=>{ f.poison=(f.poison||0)+layers; f.poisonT=Math.max(f.poisonT||0,4); fxOn(f,'☠️'); pop(f,'☠️+'+layers,'dmg'); });
+  others.forEach(f=>{ f.poison=(f.poison||0)+layers; f.cPoison=(f.cPoison||0)+layers; f.poisonT=Math.max(f.poisonT||0,4); fxOn(f,'☠️'); pop(f,'☠️+'+layers,'dmg'); });   // 蔓延出去的也是 corrode 毒＝可續傳
   log(`　☠️ ${dead.emoji} ${dead.name} 毒囊破裂，毒素蔓延到其他敵人（各 +${layers} 層）`,'sk');
 }
 
@@ -741,7 +741,7 @@ async function useSkill(u, ownSide, foeSide){
       } else { log(`　🎁 小幫手已經滿場了`,'he'); }
       buildStage(); fxOn(u,'🎁'); break; }
     case 'assassinate': for(let i=0;i<3;i++){ const fs=alive(foeSide); if(!fs.length)break; fs.sort((a,b)=>a.hp-b.hp); await basicAttack(u,[fs[i%fs.length]],0.85); await sleep(110);} break;   // 連擊掃 3 個不同敵人
-    case 'corrode': { await basicAttack(u,foeSide,1); alive(foeSide).forEach(t=>{ t.poison=(t.poison||0)+3; t.poisonT=Math.max(t.poisonT||0,4); auraOn(t,'rgba(150,220,120,.5)'); fxOn(t,'☠️'); }); log(`　☠️ 蝕刻液濺到全場，全體中毒（持續疊層、會蔓延）`,'sk'); break; }
+    case 'corrode': { await basicAttack(u,foeSide,1); alive(foeSide).forEach(t=>{ t.poison=(t.poison||0)+3; t.cPoison=(t.cPoison||0)+3; t.poisonT=Math.max(t.poisonT||0,4); auraOn(t,'rgba(150,220,120,.5)'); fxOn(t,'☠️'); }); log(`　☠️ 蝕刻液濺到全場，全體中毒（持續疊層、會蔓延）`,'sk'); break; }   // corrode 毒＝可擴散 cPoison
     case 'hypnosis': alive(foeSide).forEach(f=>{ f.frozen=Math.max(f.frozen,1); bumpVuln(f,1,5); auraOn(f,'rgba(155,109,214,.6)'); fxOn(f,'🌀'); });   // 還原 cd1：凍 1（間隔2>1 留 gap）＋易傷 +1   // ⛔ Max 鐵律：凍 1＋易傷 +1＋治癒（cd=1 每 2 回合放）。凍 1 < 放招間隔 2 ＝必留 1 回合 gap、不永久凍結（這就是 cd 能=1 的原因；上個 session 堅持凍 2 才被迫 cd2）。閉環命脈 frozen≤3 仍守（這裡只 1）。全場可疊易傷靠頻繁放疊量餵岱華 Nova
       // Max 一次性全隊小自癒：療癒 8%（明顯低於孟弦主補 50%／欣芸再生 13%×4，不搶補師定位）
       alive(ownSide).forEach(a=>{ const h=Math.round(a.maxHp*0.08); if(h>0 && a.hp<a.maxHp){ a.hp=Math.min(a.maxHp,a.hp+h); fxOn(a,'➕'); pop(a,'+'+h,'heal'); } }); log(`　🌀 全場催眠！全場罰站 1 回合＋易傷 +1（可疊），全隊回 8%`,'sk'); break;
@@ -796,7 +796,7 @@ async function endOfRound(){
     if(u.regen>0 && u.regenT>0){ const h=u.regen; u.hp=Math.min(u.maxHp,u.hp+h); u.regenT--; if(u.regenT<=0)u.regen=0; fxOn(u,'➕'); pop(u,'+'+h,'heal'); any=true; }
     if(u.poison>0 && u.poisonT>0){
       const dmg=Math.max(1,Math.round(u.maxHp*0.01*u.poison*(1+(perks.poisonMul||0))));   // ⭐毒每層 2%→1% maxHp/回（降強度、換取淬毒爆擊開放多來源）
-      u.hp-=dmg; u.poisonT--; if(u.poisonT<=0){ u.poison=Math.max(0,u.poison-1); if(u.poison>0)u.poisonT=2; }
+      u.hp-=dmg; u.poisonT--; if(u.poisonT<=0){ u.poison=Math.max(0,u.poison-1); u.cPoison=Math.min(u.cPoison||0,u.poison); if(u.poison>0)u.poisonT=2; }   // cPoison 跟著衰減、不超過總毒
       hurtFx(u); fxOn(u,'☠️'); pop(u,'-'+dmg,'dmg'); any=true;
       if(u.hp<=0){ u.hp=0; u.alive=false; sfx('ko'); log(`　💀 ${u.emoji} ${u.name} 毒發身亡`,'ko'); if(u.side==='foe'){ killHeal(); spreadPoison(u); } }
     }
