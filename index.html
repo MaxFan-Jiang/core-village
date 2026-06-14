@@ -339,8 +339,8 @@
 
 <!-- 村民資料：build 時由 villagers/*.json 聚合產生（見 scripts/build-villagers.mjs）-->
 <script src="villagers.generated.js?v=741ceb93"></script>
-<script src="firebase-config.js"></script>
-<script src="leaderboard.js"></script>
+<script src="firebase-config.js?v=313b9e3d"></script>
+<script src="leaderboard.js?v=9ade25cb"></script>
 <script>
 /* ---------- 資料：每個村民 = 一個 villagers/*.json ---------- */
 const SKILLS = {
@@ -681,7 +681,7 @@ async function dealDamage(target, amount, opt={}){
   if(!target||!target.alive) return 0;
   const _dodge=Math.min(0.9,(target.pDodge||0)+(target.dodgeP||0));   // 被動閃避(橘貓固定0.7)＋計時閃避(Lynn)相加、封頂 0.9（留 10% 命中保證終止）
   if(_dodge>0 && Math.random()<_dodge){ pop(target,'閃避','miss'); fxOn(target,'🎯'); log(`　${target.emoji} ${target.name} <span class="sk">閃避</span>了攻擊`); paintAll(); return 0; }
-  let dmg=Math.round(amount * (target.vuln>0?(1+(0.20+(perks.vulnBonus||0))*target.vuln):1));   // ⭐每層 0.15→0.20（前期有感）；層數封頂 VULN_CAP（後期不爆）
+  let dmg=opt.flat?Math.round(amount):Math.round(amount * (target.vuln>0?(1+(0.20+(perks.vulnBonus||0))*target.vuln):1));   // flat＝跳過易傷放大（越噹越大力的「上次輸出」固定加成用，避免易傷重複累乘＝指數爆）；否則每層 +0.20、封頂 VULN_CAP
   if(target.taunt>0) dmg=Math.round(dmg*0.5);   // 嘲諷中的坦克：減傷 50%
   if(perks.dmgReduce>0 && target.side==='ally') dmg=Math.round(dmg*(1-perks.dmgReduce));   // 銅牆 boon：全隊 %減傷（隨疊成長、追得上敵人 %攻擊）
   if(target.armor>0){ const eff=Math.max(0,target.armor-0.12*(target.vuln||0)); dmg=Math.round(dmg*(1-eff)); }   // 重甲怪：高 %減傷，每層易傷削穿 0.12（逼易傷流才打得動）
@@ -715,10 +715,12 @@ async function basicAttack(u, foesArr, mult=1, copt={}){
   const cdmg=(u.critDmg||1.8)+(perks.critDmg||0);
   log(`${u.emoji} <b>${u.name}</b> 攻擊 ${t.emoji} ${t.name}${crit?'（爆擊！）':''}`,'dm');
   lungeFx(u); await sleep(175);
-  let _swing=base*(crit?cdmg:1);
-  if(u.skill==='echo'){ _swing+=(u.echoPrev||0); }   // ⛏️ 越噹越大力：疊上本波前一次的輸出
-  const dealt=await dealDamage(t, _swing, {crit, big:mult>1||(u.skill==='echo'&&(u.echoPrev||0)>0)});
-  if(u.skill==='echo'){ u.echoPrev=dealt; if(dealt>0)fxOn(u,'⛏️'); }   // 記住本次輸出，下次再疊（每波 buildStage 時歸零）
+  const dealt=await dealDamage(t, base*(crit?cdmg:1), {crit, big:mult>1});   // 正常普攻（吃一次易傷）
+  let echoDealt=0;
+  if(u.skill==='echo'){   // ⛏️ 越噹越大力＝純加法：把「上次的總輸出」當 flat 固定傷害加上去（flat＝不再吃易傷，避免易傷重複累乘＝指數爆）。D_k = 本次普攻 + 上次總輸出，線性、不相乘
+    if((u.echoPrev||0)>0 && t.alive){ echoDealt=(await dealDamage(t, u.echoPrev, {flat:true, big:true}))||0; if(echoDealt>0)fxOn(u,'⛏️'); }
+    u.echoPrev=(dealt||0)+echoDealt;   // 本次總輸出（下波 buildStage 時歸零）
+  }
   // 吸血已移到 dealDamage（吃任何傷害＝普攻/技能/AoE 都回，補最低血隊友）
   if(crit){
     if(u.skill==='assassinate'){ u.bloodlust=(u.bloodlust||0)+1; fxOn(u,'🗡️'); }
@@ -727,7 +729,7 @@ async function basicAttack(u, foesArr, mult=1, copt={}){
     if(perks.critChain && !copt.chained && alive(foesArr).length>0){ await sleep(90); await basicAttack(u, foesArr, mult*0.7, {chained:true}); }
   }
   await sleep(105);
-  return dealt;   // 回傳主擊實際傷害（給 splash 濺射計算用）
+  return (dealt||0)+echoDealt;   // 回傳本次總輸出（含越噹越大力的 flat 加成；給 splash 濺射計算用）
 }
 
 async function useSkill(u, ownSide, foeSide){

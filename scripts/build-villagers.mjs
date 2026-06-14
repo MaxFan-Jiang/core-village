@@ -229,14 +229,19 @@ const body = `window.__VILLAGERS__ = ${JSON.stringify(villagers, null, 2)};\n`;
 writeFileSync(OUT, banner + body);
 console.log(`✓ 聚合 ${villagers.length} 個村民 → villagers.generated.js`);
 
-// cache-bust：把 index.html 的 villagers.generated.js 引用戳上內容雜湊（?v=），讓瀏覽器在資料變動時一定重抓、
-// 不會吃舊快取（夥伴 PR 新角色／改技能也能即時看到）。雜湊隨資料變才變＝同資料不會製造無謂 diff。
-// CI（deploy.yml）每次 build 後上傳整個目錄，故部署版的 index.html 一定帶最新 ?v=。
-const ver = createHash("sha1").update(body).digest("hex").slice(0, 8);
+// cache-bust：把 index.html 裡幾個本地 <script src> 戳上各自的內容雜湊（?v=），讓瀏覽器在檔案變動時一定重抓、
+// 不會吃舊快取。雜湊隨內容變才變＝同內容不會製造無謂 diff。CI（deploy.yml）每次 build 後上傳整個目錄→部署版一定帶最新 ?v=。
+// ⛏️ villagers.generated.js＝夥伴 PR 新角色/改技能即時可見；firebase-config.js＝賽季 collection 換了不會用舊設定送錯榜
+//   （根因案例：S1 後手機快取舊 config→送分進唯讀 beta collection→被規則拒→靜默存本機→共享榜看不到）；leaderboard.js＝改榜邏輯即時生效。
 const idxPath = join(root, "index.html");
 let idx = readFileSync(idxPath, "utf8");
-const stamped = idx.replace(
-  /<script src="villagers\.generated\.js(?:\?v=[a-f0-9]+)?"><\/script>/,
-  `<script src="villagers.generated.js?v=${ver}"></script>`
-);
-if (stamped !== idx) { writeFileSync(idxPath, stamped); console.log(`✓ index.html cache-bust 戳記 ?v=${ver}`); }
+let bustChanged = false;
+for (const [file, preContent] of [["villagers.generated.js", body], ["firebase-config.js", null], ["leaderboard.js", null]]) {
+  let content = preContent;
+  if (content == null) { try { content = readFileSync(join(root, file), "utf8"); } catch { continue; } }
+  const v = createHash("sha1").update(content).digest("hex").slice(0, 8);
+  const re = new RegExp(`<script src="${file.replace(/\./g, "\\.")}(?:\\?v=[a-f0-9]+)?"></script>`);
+  const next = idx.replace(re, `<script src="${file}?v=${v}"></script>`);
+  if (next !== idx) { idx = next; bustChanged = true; console.log(`✓ cache-bust ${file}?v=${v}`); }
+}
+if (bustChanged) writeFileSync(idxPath, idx);
