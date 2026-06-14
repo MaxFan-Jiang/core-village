@@ -9,6 +9,7 @@
  *   node scripts/build-villagers.mjs --check # 只驗證，不寫檔（CI 用）
  */
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -227,3 +228,15 @@ const banner = "// ⚠️ 自動產生，請勿手動編輯。改 villagers/*.js
 const body = `window.__VILLAGERS__ = ${JSON.stringify(villagers, null, 2)};\n`;
 writeFileSync(OUT, banner + body);
 console.log(`✓ 聚合 ${villagers.length} 個村民 → villagers.generated.js`);
+
+// cache-bust：把 index.html 的 villagers.generated.js 引用戳上內容雜湊（?v=），讓瀏覽器在資料變動時一定重抓、
+// 不會吃舊快取（夥伴 PR 新角色／改技能也能即時看到）。雜湊隨資料變才變＝同資料不會製造無謂 diff。
+// CI（deploy.yml）每次 build 後上傳整個目錄，故部署版的 index.html 一定帶最新 ?v=。
+const ver = createHash("sha1").update(body).digest("hex").slice(0, 8);
+const idxPath = join(root, "index.html");
+let idx = readFileSync(idxPath, "utf8");
+const stamped = idx.replace(
+  /<script src="villagers\.generated\.js(?:\?v=[a-f0-9]+)?"><\/script>/,
+  `<script src="villagers.generated.js?v=${ver}"></script>`
+);
+if (stamped !== idx) { writeFileSync(idxPath, stamped); console.log(`✓ index.html cache-bust 戳記 ?v=${ver}`); }

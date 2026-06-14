@@ -338,7 +338,7 @@
 </div>
 
 <!-- 村民資料：build 時由 villagers/*.json 聚合產生（見 scripts/build-villagers.mjs）-->
-<script src="villagers.generated.js"></script>
+<script src="villagers.generated.js?v=741ceb93"></script>
 <script src="firebase-config.js"></script>
 <script src="leaderboard.js"></script>
 <script>
@@ -803,10 +803,10 @@ async function endOfRound(){
   for(const u of [...allies, ...foes]){
     if(!u.alive) continue;
     if(ctrlActive && u.side==='ally' && u.hp<u.maxHp){ const h=Math.round(u.maxHp*0.07); if(h>0){ u.hp=Math.min(u.maxHp,u.hp+h); fxOn(u,'➕'); pop(u,'+'+h,'heal'); any=true; } }
-    // 再生王 niche：止血式自癒（吃已失血量的%、越受傷回越多）。此塊在毒 tic 之前 → (u.poison||0)<=0 讀的是「本回合身上還有沒有毒」(毒層數要到下面毒 tic 用盡才 --)，故中毒＝自癒整段跳過＝完全失效（不是減量）。凍結不檢查＝被凍/被催眠的王照樣自癒（控制是 niche#3 的活，再生王只逼毒）；但若被凍則自癒砍半，保證任何 CC 組合都無法讓自癒王完全打不死（終止安全網）
+    // 再生王 niche：止血式自癒（吃已失血量的%、越受傷回越多）。此塊在毒 tic 之前 → (u.poison||0)<=0 讀的是「本回合身上還有沒有毒」(毒層數要到下面毒 tic 用盡才 --)，故中毒＝自癒整段跳過＝完全失效（不是減量）。⭐2026-06-14 Max：凍結「不再」關閉自癒——凍結已有易傷夠強，不能再把毒的價值也攬走＝再生王只逼毒、不逼凍。
     if((u.selfHeal||0)>0 && u.side==='foe'){
       if((u.poison||0)<=0){
-        if(u.hp<u.maxHp){ let h=Math.max(Math.round((u.maxHp-u.hp)*u.selfHeal), Math.round(u.maxHp*0.06)); if(u.frozen>0)h=0; h=Math.min(h,u.maxHp-u.hp); if(h>0){ u.hp+=h; fxOn(u,'🩸'); pop(u,'+'+h,'heal'); any=true; } }   // ⭐2026-06-14：被凍時自癒完全關閉（舊砍半會漏鎖、被沙盤證實）＝終止安全網不漏。凍結＝結凍＝不能再生，凍/毒皆完全失效
+        if(u.hp<u.maxHp){ let h=Math.max(Math.round((u.maxHp-u.hp)*u.selfHeal), Math.round(u.maxHp*0.06)); h=Math.min(h,u.maxHp-u.hp); if(h>0){ u.hp+=h; fxOn(u,'🩸'); pop(u,'+'+h,'heal'); any=true; } }   // ⭐2026-06-14 Max：移除「凍結停止自癒」——只有毒能關自癒（凍結已有易傷、不該再攬毒的價值）
       } else if(u.hp<u.maxHp){ fxOn(u,'🚫'); pop(u,'🚫癒','miss'); }   // 中毒→自癒完全失效（玩家學到機制；滿血不 spam）
     }
     if(u.regen>0 && u.regenT>0){ const h=u.regen; u.hp=Math.min(u.maxHp,u.hp+h); u.regenT--; if(u.regenT<=0)u.regen=0; fxOn(u,'➕'); pop(u,'+'+h,'heal'); any=true; }
