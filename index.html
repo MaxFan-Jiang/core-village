@@ -675,6 +675,7 @@ function alive(arr){ return arr.filter(u=>u.alive); }
 function lowestHp(arr){ return alive(arr).sort((a,b)=>a.hp-b.hp)[0]; }
 function rand(arr){ const a=alive(arr); return a[Math.floor(Math.random()*a.length)]; }
 const VULN_CAP=6;   // ⭐易傷層數硬上限：封頂傷害＋冰霜 Nova 滾雪球（防雙控無限）；≥6 保重甲仍可被 6 層削穿
+const REGEN_STALL_LOSE=8;   // 🩸 再生王僵局判輸：無毒、又打不贏「再生 Bug」回血（連 N 回合沒打出新低血）→ 直接判輸＋提示用毒（取代乾耗/靠 enrage 慢慢輾）
 function bumpVuln(u,n,t){ u.vuln=Math.min(VULN_CAP,(u.vuln||0)+n); u.vulnT=Math.max(u.vulnT||0,t); }
 
 async function dealDamage(target, amount, opt={}){
@@ -930,6 +931,15 @@ async function runBattle(){
       }
       // 回合結束：全場狀態統一結算（毒/再生/易傷/凍結倒數/rally/taunt 一次跳完）
       await endOfRound();
+      // 🩸 再生王僵局判輸：場上有「再生 Bug」、隊上沒毒、又連續 N 回合打不出新低血（＝輸出贏不過回血）→ 直接判輸＋提示用毒
+      const _rg=alive(foes).find(f=>(f.selfHeal||0)>0);
+      if(_rg){
+        if((_rg.poison||0)>0){ _rg._rgStall=0; }                                   // 有毒＝有解，不判
+        else { if(_rg._rgMin==null)_rg._rgMin=_rg.hp;
+          if(_rg.hp < _rg._rgMin-_rg.maxHp*0.005){ _rg._rgMin=_rg.hp; _rg._rgStall=0; }   // 有實質進度（>0.5% 新低）就重置
+          else _rg._rgStall=(_rg._rgStall||0)+1; }
+        if((_rg._rgStall||0)>=REGEN_STALL_LOSE){ log(`　🩸 再生 Bug 回血快過你的輸出、隊上又沒有毒——僵住了。`,'ko'); return endBattle(curWave-1, '💡 中毒能讓「再生 Bug」完全停止回血。帶一個會下毒的角色（Matt 蝕刻），或幫爆擊隊點「淬毒爆擊」詞條，再來挑戰！'); }
+      }
     }
     // 😈 frenzy 清場復活：foes 全滅（含同歸於盡）且 ≤N 回合 → 全隊死者滿血復活（在判負檢查前、同歸於盡會被救回續戰）。窗口 10 ＝反龜甲閘（賭輸則 10 回合內早被清光、摸不到復活；賭贏快速清場才換到容錯）
     if(frenzyActive && alive(foes).length===0 && (roundN - _waveStartRound) <= FRENZY_REVIVE_ROUNDS){
@@ -946,7 +956,7 @@ async function runBattle(){
   }
   endBattle(curWave-1);
 }
-function endBattle(reached){
+function endBattle(reached, hint){
   busy=false;
   const prev=bestWave(); const isRec=reached>prev && reached>0; setBest(reached);
   const win = reached>=5;
@@ -954,7 +964,8 @@ function endBattle(reached){
   const r=$('#result'); r.className='result show '+(win?'win':'lose');
   const title = reached<=0 ? '🛡️ 第 1 波就被攻破…' : `${reached>=10?'🏆':(win?'🎉':'🛡️')} 衝到第 ${reached} 波！`;
   const sub = isRec ? '🔥 刷新你的最高紀錄！換個卡組還能更遠。' : `你的最高紀錄：${bestWave()} 波　·　換隊組合再衝更遠。`;
-  r.innerHTML = `<h3>${title}</h3><p>${sub}</p><div id="lbResult"></div><button class="btn" id="againBtn">↻ 再衝一次</button>`;
+  const hintHtml = hint ? `<p style="margin:10px 0;padding:9px 13px;border-radius:8px;background:rgba(201,169,110,.14);border:1px solid rgba(201,169,110,.35);color:#C9A96E;font-size:.9em;line-height:1.7">${hint}</p>` : '';
+  r.innerHTML = `<h3>${title}</h3><p>${sub}</p>${hintHtml}<div id="lbResult"></div><button class="btn" id="againBtn">↻ 再衝一次</button>`;
   $('#againBtn').addEventListener('click', resetAndStart);
   if(reached>0) submitScore(reached);
   if(reached>=5) confetti();
