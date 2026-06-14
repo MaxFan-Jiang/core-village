@@ -348,7 +348,7 @@ const SKILLS = {
   taunt:      {name:"挺身",     icon:"🦺", desc:"嘲諷所有敵人吸引火力到自己，獲得大護盾並大幅減傷", kind:"util"},
   freeze:     {name:"罰站",     icon:"❄️", desc:"凍結攻擊最高的 2 個敵人並疊易傷，再放冰霜 Nova 轟全場", kind:"util"},
   assassinate:{name:"自動化連擊",icon:"🗡️", desc:"連擊最多 3 個敵人；爆擊疊『殺意』提升爆擊率，爆率滿後殺意轉攻擊力", kind:"atk"},
-  dodge:      {name:"分鏡預判", icon:"🎯", desc:"全隊 3 回合內、每次受擊 70% 機率閃避（與『全場焦點』可疊、封頂 90%）", kind:"util"},
+  dodge:      {name:"薛丁格之態", icon:"📦", desc:"全隊進入疊加態：3 回合內每次受擊 70% 機率閃避（與『全場焦點』可疊、封頂 90%）", kind:"util"},
   focus:      {name:"全場焦點", icon:"🐯", desc:"被動永久 70% 閃避（無空窗）；放招吸引全場火力 3 回合、打牠的敵人疊一層易傷（沒命中也算）", kind:"util"},
   heal:       {name:"散熱模組", icon:"💧", desc:"大幅治療血量最低的隊友，並小補全隊", kind:"util"},
   summon:     {name:"檔期促銷", icon:"🎁", desc:"召喚一個援軍小幫手", kind:"util"},
@@ -362,6 +362,8 @@ const SKILLS = {
   detonate:   {name:"連鎖引爆", icon:"🧨", desc:"重擊主目標；若擊殺，以其最大血量 30% 引爆波及全體", kind:"atk"},
   armor:      {name:"披甲", icon:"🪖", desc:"全隊護盾補到 60% 最大血量（保底 60、不可疊）；持續到被打掉或換波（吸傷坦法）", kind:"util"},
   frenzy:     {name:"都給我躁起來！", icon:"💢", desc:"全場狂暴化：敵我所有人攻擊×2（永久）；限時內清場則全隊滿血復活", kind:"util"},
+  haste:      {name:"速寫",     icon:"💨", desc:"全隊加速：在場被動小幅 +速；放招大幅 +速數回合。速度＝出手先後，讓慢隊在敵人之前落下控制與輸出（封頂）", kind:"util"},
+  echo:       {name:"越噹越大力",icon:"⛏️", desc:"被動：本波內每次攻擊都疊上前一次的傷害，越敲越重——只要撐得住，怪終究全滅", kind:"atk"},
 };
 /* 村民資料由 build 產生（window.__VILLAGERS__，聚合自 villagers/*.json）。原本寫死的陣列已抽走。*/
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -510,12 +512,16 @@ $('#autoBtn').addEventListener('click',()=>{
 /* ---------- 建立戰鬥單位 ---------- */
 // 技能 CD（回合）平衡旋鈕：預設 3＝每 4 回合放一次。hypnosis=1＝每 2 回合放＝Max 放招最頻繁（凍1+易傷1+治癒1、靠次數疊量、餵岱華 Nova）。
 // ⛔ 鐵律：frozen 必須 < 放招間隔(=cd+1) 才有 gap、不永久凍結。hypnosis cd=1＝間隔 2＝凍結必須 ≤1（已設 Math.max(f,1)）。若把 hypnosis 凍結改回 2 又維持 cd=1＝永久凍結＝破閉環＋再生王零傷無限自癒，務必同動兩者。CD 留引擎碼、不放貢獻者 villagers/*.json。
-const CD_BY_SKILL = { hypnosis: 1, armorbreak: 2, armor: 1 };   // hypnosis cd1；armorbreak cd2；armor cd1（護盾要常補才維持得住、否則太爛）
+const CD_BY_SKILL = { hypnosis: 1, overclock: 2, armorbreak: 1, armor: 1 };   // hypnosis cd1；overclock cd2＋armorbreak cd1（2026-06-14 各 -1：長 cd 讓爆發/AoE 期望值太低，Max 拍板提頻率）；armor cd1（護盾要常補才維持得住）
+// 速度系統（2026-06-14）：速度＝回合內出手先後（每單位每回合仍只出手一次，非出手次數）。haste(Lynn 速寫) 給全隊加速＝讓慢隊在敵人之前落控制/輸出。
+// ⛔ SPD_CAP＝有效速度硬上限，防「我方速度無限蓋過怪→永遠先手鏈控」的無限態（銅牆 +速雪球的歷史成因）。20＝現有合法 spd 上限＝今天本就可達，不引入新狀態。
+const SPD_CAP = 20, HASTE_PASSIVE = 2, HASTE_ACTIVE = 5, HASTE_DUR = 3;   // 被動小幅+2／放招大幅+5 持續 3 回合（皆併入 effSpd 後封頂 SPD_CAP）；數值待 Max playtest
+function effSpd(u){ let s=u.spd; if(u.side==='ally'){ if(u._hasteAura) s+=HASTE_PASSIVE; if(u.haste>0) s+=HASTE_ACTIVE; } return Math.min(SPD_CAP, s); }
 function mkAlly(v){
   return {...v, side:'ally', maxHp:v.hp, hp:v.hp, baseHp:v.hp, baseAtk:v.atk, atk:v.atk,
     crit:(typeof v.crit==='number'?v.crit:0.08), critDmg:1.9, bloodlust:0,
     poison:0, poisonT:0, frozen:0, vuln:0, vulnT:0, regen:0, regenT:0,
-    cdLeft:0, cd:(CD_BY_SKILL[v.skill] ?? 3), shield:0, dodgeP:0, dodgeT:0, pDodge:(v.skill==='focus'?0.7:0), overheat:false, rally:0, taunt:0, focus:0, alive:true};   // pDodge＝被動永久閃避（橘貓固定 70%、不靠放招）
+    cdLeft:0, cd:(CD_BY_SKILL[v.skill] ?? 3), shield:0, dodgeP:0, dodgeT:0, pDodge:(v.skill==='focus'?0.7:0), overheat:false, rally:0, taunt:0, focus:0, haste:0, echoPrev:0, _hasteAura:false, alive:true};   // pDodge＝被動永久閃避（橘貓固定 70%、不靠放招）；haste＝限時加速計數、echoPrev＝越噹越大力上次輸出（每波重置）
 }
 /* 無盡衝波：敵人隨波數變強，每 5 波一個魔王 */
 const FOE_POOL = [
@@ -575,7 +581,7 @@ const SPRITES={
 const BASEPAL={'.':null,'O':'#181226','H':'#5a3a2a','S':'#f3cda0','W':'#ffffff','F':'#39394d','k':'#101820',
   'B':'#C9A96E','b':'#a6843a','g':'#62c06e','d':'#3c8a49','y':'#f5d44a','r':'#f0922e'};
 function darken(hex,f){ const n=parseInt(hex.slice(1),16); const r=Math.round(((n>>16)&255)*f),g=Math.round(((n>>8)&255)*f),b=Math.round((n&255)*f); return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1); }
-const SKILLCOL={shield:'#5e8fc8',taunt:'#6b87b8',freeze:'#79b6e0',assassinate:'#6f8fb5',dodge:'#e89ac0',focus:'#fc8b01',heal:'#6abf8a',summon:'#e0a060',corrode:'#8bbf5a',empower:'#C9A96E',hypnosis:'#9b6dd6',overclock:'#e0704f',regen:'#5ec8a0',armorbreak:'#8a8f9e',splash:'#5ec8e0',detonate:'#e0704f',armor:'#6b87b8',frenzy:'#161616'};
+const SKILLCOL={shield:'#5e8fc8',taunt:'#6b87b8',freeze:'#79b6e0',assassinate:'#6f8fb5',dodge:'#e89ac0',focus:'#fc8b01',heal:'#6abf8a',summon:'#e0a060',corrode:'#8bbf5a',empower:'#C9A96E',hypnosis:'#9b6dd6',overclock:'#e0704f',regen:'#5ec8a0',armorbreak:'#8a8f9e',splash:'#5ec8e0',detonate:'#e0704f',armor:'#6b87b8',frenzy:'#161616',haste:'#7fd0c0',echo:'#c08a4f'};
 const DARK_MAX_OV={B:'#161616',b:'#000000',H:'#0c0c0c',S:'#363636',F:'#000000',W:'#d23b3b'};   // 😈 黑化MAX：原 hero 模型「全黑」調色盤（衣/髮/膚/腳全暗，紅眼透出瘋意）
 // 載入自訂像素 sprite（村民 JSON 裡的 sprite.grid + sprite.colors）
 (window.__VILLAGERS__||[]).forEach(v=>{
@@ -709,7 +715,10 @@ async function basicAttack(u, foesArr, mult=1, copt={}){
   const cdmg=(u.critDmg||1.8)+(perks.critDmg||0);
   log(`${u.emoji} <b>${u.name}</b> 攻擊 ${t.emoji} ${t.name}${crit?'（爆擊！）':''}`,'dm');
   lungeFx(u); await sleep(175);
-  const dealt=await dealDamage(t, base*(crit?cdmg:1), {crit, big:mult>1});
+  let _swing=base*(crit?cdmg:1);
+  if(u.skill==='echo'){ _swing+=(u.echoPrev||0); }   // ⛏️ 越噹越大力：疊上本波前一次的輸出
+  const dealt=await dealDamage(t, _swing, {crit, big:mult>1||(u.skill==='echo'&&(u.echoPrev||0)>0)});
+  if(u.skill==='echo'){ u.echoPrev=dealt; if(dealt>0)fxOn(u,'⛏️'); }   // 記住本次輸出，下次再疊（每波 buildStage 時歸零）
   // 吸血已移到 dealDamage（吃任何傷害＝普攻/技能/AoE 都回，補最低血隊友）
   if(crit){
     if(u.skill==='assassinate'){ u.bloodlust=(u.bloodlust||0)+1; fxOn(u,'🗡️'); }
@@ -738,6 +747,7 @@ async function useSkill(u, ownSide, foeSide){
       break; }
     case 'heal':   { const cand=alive(ownSide).filter(a=>a.id!=='helper'); const t=cand.sort((a,b)=>a.hp/a.maxHp-b.hp/b.maxHp)[0]; if(t){const h=Math.round(t.maxHp*0.5); t.hp=Math.min(t.maxHp,t.hp+h); auraOn(t,'rgba(74,208,125,.5)'); fxOn(t,'➕'); pop(t,'+'+h,'heal'); log(`　💧 治療 ${t.emoji} ${t.name} +${h}`,'he'); cand.forEach(a=>{ if(a!==t){ const hh=Math.round(a.maxHp*0.12); a.hp=Math.min(a.maxHp,a.hp+hh); if(hh>0){fxOn(a,'➕'); pop(a,'+'+hh,'heal');} } });} break; }   // 主補 50% + 全隊小補 12%（補師流續命引擎）
     case 'empower': alive(ownSide).forEach(a=>{a.rally=2; a.crit=Math.min(0.9,(a.crit||0)+0.22); auraOn(a,'rgba(201,169,110,.5)'); fxOn(a,'📈');}); log(`　📈 全隊 攻擊↑（數回合）、爆擊率永久↑`,'sk'); break;
+    case 'haste': alive(ownSide).forEach(a=>{a.haste=HASTE_DUR; auraOn(a,'rgba(127,208,192,.55)'); fxOn(a,'💨');}); log(`　💨 全隊速寫加速！${HASTE_DUR} 回合內出手更快（封頂 ${SPD_CAP}）`,'sk'); break;   // 放招大幅加速（被動小幅在 effSpd）
     case 'dodge':  alive(ownSide).forEach(a=>{a.dodgeP=Math.min(0.9,(a.dodgeP||0)+0.7); a.dodgeT=Math.max(a.dodgeT||0,3); auraOn(a,'rgba(201,169,110,.55)'); fxOn(a,'🎯');}); log(`　🎯 全隊預判：3 回合內每次受擊 70% 機率閃避（與橘貓焦點可疊、封頂 90%）`,'sk'); break;   // ⭐改加法封頂 0.9：可與 focus 疊到幾乎必閃   // Max playtest：50%→70%（Lynn 太不穩定；坦法已有新選擇 max+岱華，不怕配 Joce 過強）
     case 'summon': {
       allies = allies.filter(a=>!(a.id==='helper' && !a.alive));            // 清掉死掉的小雞
@@ -810,7 +820,7 @@ async function endOfRound(){
     if(u.frozen>0) u.frozen--;
     if(u.dodgeT>0){ u.dodgeT--; if(u.dodgeT<=0)u.dodgeP=0; }
     if(u.side==='foe') u.enrage=(u.enrage||0)+1;   // 激怒：一波拖越久、怪攻擊越高（破龜縮 DPS check）
-    if(u.side==='ally'){ if(u.rally>0){ u.rally--; if(u.rally===0)pop(u,'攻↑結束','miss'); } if(u.taunt>0)u.taunt--; if(u.focus>0)u.focus--; }
+    if(u.side==='ally'){ if(u.rally>0){ u.rally--; if(u.rally===0)pop(u,'攻↑結束','miss'); } if(u.taunt>0)u.taunt--; if(u.focus>0)u.focus--; if(u.haste>0)u.haste--; }
   }
   if(foes.some(f=>f.alive && (f.enrage||0)===3)) log('　😡 敵人激怒了！清場太慢會被越打越痛，加快輸出',' dm');
   paintAll(); if(any){ sfx('poison'); await sleep(280); }
@@ -822,7 +832,7 @@ async function takeTurn(u, ownSide, foeSide){
   if(alive(foeSide).length===0) return;
   if(u.overheat){ u.overheat=false; pop(u,'過熱','miss'); log(`　🥵 ${u.emoji} ${u.name} 過熱，這回合休息`); paintAll(); await sleep(420); return; }
   actFx(u);
-  if(u.skill && u.skill!=='frenzy' && u.cdLeft<=0){ u.cdLeft=u.cd; await useSkill(u, ownSide, foeSide); }   // 😈 frenzy＝被動靈氣，黑化MAX 不放招、只普攻（靈氣在 runBattle 開場就常駐）
+  if(u.skill && u.skill!=='frenzy' && u.skill!=='echo' && u.cdLeft<=0){ u.cdLeft=u.cd; await useSkill(u, ownSide, foeSide); }   // 😈 frenzy／⛏️ echo＝被動，不放招只普攻（echo 的 ramp 在 basicAttack 內，frenzy 靈氣在 runBattle 開場常駐）
   else { if(u.cdLeft>0)u.cdLeft--; await basicAttack(u, foeSide, 1); }
   // decay rally
   if(u.rally>0 && u.side==='ally'){ /* decremented per round below */ }
@@ -905,12 +915,13 @@ async function runBattle(){
     curWave++;
     foes = genWave(curWave); tagUids(foes);
     $('#wavebar').textContent=`第 ${curWave} 波`+(curWave%5===0?'　👾 魔王！':'')+`　·　你的最高紀錄 ${bestWave()} 波`;
-    buildStage(); if(curWave%5===0) sfx('boss'); alive(allies).forEach(a=>a._firstHit=perks.firstStrikeCrit); log(`<span class="win">— 第 ${curWave} 波 —</span>`); await sleep(550);
+    buildStage(); if(curWave%5===0) sfx('boss'); alive(allies).forEach(a=>{a._firstHit=perks.firstStrikeCrit; a.echoPrev=0;}); log(`<span class="win">— 第 ${curWave} 波 —</span>`); await sleep(550);   // ⛏️ echoPrev 每波歸零（越噹越大力 per-波 累積）
     const _waveStartRound = roundN;   // 😈 frenzy 清場復活窗口計時起點
     while(alive(foes).length>0 && alive(allies).length>0){
       roundN++;
       // turn order by spd, all alive units
-      const order=[...alive(allies),...alive(foes)].sort((a,b)=>b.spd-a.spd);
+      const _ha=alive(allies).some(a=>a.skill==='haste'); alive(allies).forEach(a=>a._hasteAura=_ha);   // 💨 速寫被動光環：有 haste 角色在場→全隊被動 +速
+      const order=[...alive(allies),...alive(foes)].sort((a,b)=>effSpd(b)-effSpd(a));   // 有效速度＝spd+被動光環+限時 haste，封頂 SPD_CAP
       for(const u of order){
         if(!u.alive) continue;
         if(alive(foes).length===0||alive(allies).length===0) break;
