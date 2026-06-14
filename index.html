@@ -675,7 +675,7 @@ function alive(arr){ return arr.filter(u=>u.alive); }
 function lowestHp(arr){ return alive(arr).sort((a,b)=>a.hp-b.hp)[0]; }
 function rand(arr){ const a=alive(arr); return a[Math.floor(Math.random()*a.length)]; }
 const VULN_CAP=6;   // ⭐易傷層數硬上限：封頂傷害＋冰霜 Nova 滾雪球（防雙控無限）；≥6 保重甲仍可被 6 層削穿
-const REGEN_STALL_LOSE=8;   // 🩸 再生王僵局判輸：無毒、又打不贏「再生 Bug」回血（連 N 回合沒打出新低血）→ 直接判輸＋提示用毒（取代乾耗/靠 enrage 慢慢輾）
+const REGEN_STALL_LOSE=20;   // 🩸 再生王僵局判輸：再生 Bug 為場上最後一隻時、無毒、又連 N 回合打不出新低血（輸出贏不過回血）→ 判輸＋提示用毒。N=20（只算「卡在單獨再生王」的回合、清小怪不算）
 function bumpVuln(u,n,t){ u.vuln=Math.min(VULN_CAP,(u.vuln||0)+n); u.vulnT=Math.max(u.vulnT||0,t); }
 
 async function dealDamage(target, amount, opt={}){
@@ -931,8 +931,8 @@ async function runBattle(){
       }
       // 回合結束：全場狀態統一結算（毒/再生/易傷/凍結倒數/rally/taunt 一次跳完）
       await endOfRound();
-      // 🩸 再生王僵局判輸：場上有「再生 Bug」、隊上沒毒、又連續 N 回合打不出新低血（＝輸出贏不過回血）→ 直接判輸＋提示用毒
-      const _rg=alive(foes).find(f=>(f.selfHeal||0)>0);
+      // 🩸 再生王僵局判輸：⛔只在「再生 Bug 是場上最後一隻」時才算（清小怪階段不計，否則前面小怪沒清完就誤判）；無毒、連 N 回合打不出新低血（輸出贏不過回血）→ 判輸＋提示用毒
+      const _foes=alive(foes); const _rg=(_foes.length===1 && (_foes[0].selfHeal||0)>0)?_foes[0]:null;
       if(_rg){
         if((_rg.poison||0)>0){ _rg._rgStall=0; }                                   // 有毒＝有解，不判
         else { if(_rg._rgMin==null)_rg._rgMin=_rg.hp;
