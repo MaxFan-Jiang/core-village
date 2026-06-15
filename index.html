@@ -675,11 +675,12 @@ function alive(arr){ return arr.filter(u=>u.alive); }
 function lowestHp(arr){ return alive(arr).sort((a,b)=>a.hp-b.hp)[0]; }
 function rand(arr){ const a=alive(arr); return a[Math.floor(Math.random()*a.length)]; }
 const VULN_CAP=6;   // ⭐易傷層數硬上限：封頂傷害＋冰霜 Nova 滾雪球（防雙控無限）；≥6 保重甲仍可被 6 層削穿
-const HEAL_SHIELD_CAP=0.30;   // 🩹 回血溢出轉護盾的上限＝maxHp×此值（防無限續命破閉環；armor/taunt 自己的高盾不受此限、heal 不會把它蓋低）
+const HEAL_SHIELD_COEF=0.30;   // 🩹 回血溢出轉護盾的係數：滿血還回 X 血 → +round(X×此值) 護盾（持續、不重置）。⛔吸血(lifesteal)不計（防爆擊大吸血暴護盾）
+const HEAL_SHIELD_CAP=0.30;    // 🩹 heal 盾天花板＝maxHp×此值（⛔必要：因 #1 任何盾都全擋一擊，無上限＝無限免疫坦破閉環，sim 實證；armor/taunt 自己的高盾不受此限、heal 不會把它蓋低）
 const REGEN_STALL_LOSE=20;   // 🩸 再生王僵局判輸：再生 Bug 為最後一隻、無毒、整整 N 回合視窗內 hp 都沒淨下降（打不動回血）→ 判輸＋提示用毒。N=20（只算卡單獨再生王；用視窗起點比、非歷史最低＝不誤判慢贏）
 function bumpVuln(u,n,t){ u.vuln=Math.min(VULN_CAP,(u.vuln||0)+n); u.vulnT=Math.max(u.vulnT||0,t); }
 // 統一回血：補到滿，溢出轉護盾（封頂 maxHp 防無限續命）。Max 2026-06-16：補師要有用、滿血也不浪費＝溢出變護甲
-function healUnit(u, amt){ if(!u || amt<=0) return 0; const room=Math.max(0,u.maxHp-u.hp), healed=Math.min(room,amt); if(healed>0)u.hp+=healed; const over=amt-healed; if(over>0){ const cap=u.maxHp*HEAL_SHIELD_CAP; if((u.shield||0)<cap) u.shield=Math.min(cap,(u.shield||0)+over); } return healed; }   // 溢出→護盾，但只補到 maxHp×HEAL_SHIELD_CAP（不蓋掉 armor 的高盾、也防無限續命破閉環）
+function healUnit(u, amt, noShield){ if(!u || amt<=0) return 0; const room=Math.max(0,u.maxHp-u.hp), healed=Math.min(room,amt); if(healed>0)u.hp+=healed; const over=amt-healed; if(over>0 && !noShield){ const cap=u.maxHp*HEAL_SHIELD_CAP; if((u.shield||0)<cap) u.shield=Math.min(cap,(u.shield||0)+Math.round(over*HEAL_SHIELD_COEF)); } return healed; }   // 滿血溢出×係數→護盾(持續不重置、補到 maxHp×CAP 為止)；noShield=true(吸血)只回血不轉盾
 
 async function dealDamage(target, amount, opt={}){
   if(!target||!target.alive) return 0;
@@ -701,7 +702,7 @@ async function dealDamage(target, amount, opt={}){
     shake(opt.crit||opt.big); sfx(opt.crit?'crit':'hit');
     await sleep(opt.crit?95:55);   // 打擊頓挫 hitstop
   }
-  if(perks.lifesteal>0 && dealt>0 && target.side==='foe'){ const a2=lowestHp(allies); if(a2){ const h=Math.round(dealt*perks.lifesteal); if(h>0){ healUnit(a2,h); pop(a2,'+'+h,'heal'); } } }   // ⭐吸血：對敵造成任何傷害→補最低血隊友（滿血則溢出轉護盾）
+  if(perks.lifesteal>0 && dealt>0 && target.side==='foe'){ const a2=lowestHp(allies); if(a2){ const h=Math.round(dealt*perks.lifesteal); if(h>0){ healUnit(a2,h,true); pop(a2,'+'+h,'heal'); } } }   // ⭐吸血：對敵造成任何傷害→補最低血隊友（⛔noShield：吸血溢出不轉護盾，防爆擊大吸血暴護甲）
   if(target.hp<=0){ target.hp=0; target.alive=false; sfx('ko'); log(`　💀 ${target.emoji} ${target.name} 倒下`,'ko'); if(target.side==='foe'){ killHeal(); spreadPoison(target); } }
   paintAll();
   return dealt;
