@@ -559,7 +559,7 @@ let perks={}, runBoons=[]; const takenBoons=new Set();
 function resetPerks(){ perks={lifesteal:0,critChain:false,teamCrit:0,critDmg:0,atkMul:1,killHeal:0,poisonMul:0,vulnBonus:0,firstStrikeCrit:false,waveHeal:0,berserk:false,critRamp:false,critPoison:false,dmgReduce:0,ironStacks:0,atkStacks:0}; }
 resetPerks();
 // 浴血：敵人倒下時全隊回血（隨擊殺放大，餵血甲消耗流）
-function killHeal(){ if(perks.killHeal<=0) return; const list=alive(allies); list.forEach(a=>{ a.hp=Math.min(a.maxHp,a.hp+Math.round(a.maxHp*perks.killHeal)); }); if(list[0]) pop(list[0],'🧛','heal'); }
+function killHeal(){ if(perks.killHeal<=0) return; const list=alive(allies); list.forEach(a=>{ healUnit(a, Math.round(a.maxHp*perks.killHeal)); }); if(list[0]) pop(list[0],'🧛','heal'); }
 // 毒蔓延：中毒的敵人死亡 → 毒囊破裂，把當前毒層數疊到其他所有存活敵人身上＝毒的「複利」。越多怪帶毒死、剩下的毒越濃（3→6→12→24…雪球）→ 群戰 AoE 滾雪球；但對單體 boss 無效（沒有其他怪可蔓延）＝與爆擊（單體強）區隔出毒的獨立身份。spreadFrac 為蔓延比例旋鈕（首版 1.0＝全額；嫌太 swingy 改 0.5 或只蔓延一隻）
 const POISON_SPREAD_FRAC=1.0;
 function spreadPoison(dead){
@@ -675,8 +675,11 @@ function alive(arr){ return arr.filter(u=>u.alive); }
 function lowestHp(arr){ return alive(arr).sort((a,b)=>a.hp-b.hp)[0]; }
 function rand(arr){ const a=alive(arr); return a[Math.floor(Math.random()*a.length)]; }
 const VULN_CAP=6;   // ⭐易傷層數硬上限：封頂傷害＋冰霜 Nova 滾雪球（防雙控無限）；≥6 保重甲仍可被 6 層削穿
+const HEAL_SHIELD_CAP=0.30;   // 🩹 回血溢出轉護盾的上限＝maxHp×此值（防無限續命破閉環；armor/taunt 自己的高盾不受此限、heal 不會把它蓋低）
 const REGEN_STALL_LOSE=20;   // 🩸 再生王僵局判輸：再生 Bug 為最後一隻、無毒、整整 N 回合視窗內 hp 都沒淨下降（打不動回血）→ 判輸＋提示用毒。N=20（只算卡單獨再生王；用視窗起點比、非歷史最低＝不誤判慢贏）
 function bumpVuln(u,n,t){ u.vuln=Math.min(VULN_CAP,(u.vuln||0)+n); u.vulnT=Math.max(u.vulnT||0,t); }
+// 統一回血：補到滿，溢出轉護盾（封頂 maxHp 防無限續命）。Max 2026-06-16：補師要有用、滿血也不浪費＝溢出變護甲
+function healUnit(u, amt){ if(!u || amt<=0) return 0; const room=Math.max(0,u.maxHp-u.hp), healed=Math.min(room,amt); if(healed>0)u.hp+=healed; const over=amt-healed; if(over>0){ const cap=u.maxHp*HEAL_SHIELD_CAP; if((u.shield||0)<cap) u.shield=Math.min(cap,(u.shield||0)+over); } return healed; }   // 溢出→護盾，但只補到 maxHp×HEAL_SHIELD_CAP（不蓋掉 armor 的高盾、也防無限續命破閉環）
 
 async function dealDamage(target, amount, opt={}){
   if(!target||!target.alive) return 0;
@@ -688,8 +691,9 @@ async function dealDamage(target, amount, opt={}){
   if(target.armor>0){ const eff=Math.max(0,target.armor-0.12*(target.vuln||0)); dmg=Math.round(dmg*(1-eff)); }   // 重甲怪：高 %減傷，每層易傷削穿 0.12（逼易傷流才打得動）
   let dealt=0;
   if(target.shield>0){
-    const absorbed=Math.min(target.shield,dmg); target.shield-=absorbed; dmg-=absorbed;
-    pop(target,'🛡️-'+absorbed,'miss');
+    const before=target.shield; target.shield=Math.max(0, target.shield-dmg);
+    pop(target,'🛡️-'+(before-target.shield),'miss');
+    dmg=0;   // ⭐被打掉的該次完全不造成延伸傷害（Max 2026-06-16：護盾擋下整擊、溢出傷害不延伸到血量）
   }
   if(dmg>0){
     target.hp-=dmg; dealt=dmg; hurtFx(target); impactFx(target, opt.crit?'⚡':'💥'); flashTarget(target);
@@ -697,7 +701,7 @@ async function dealDamage(target, amount, opt={}){
     shake(opt.crit||opt.big); sfx(opt.crit?'crit':'hit');
     await sleep(opt.crit?95:55);   // 打擊頓挫 hitstop
   }
-  if(perks.lifesteal>0 && dealt>0 && target.side==='foe'){ const a2=lowestHp(allies); if(a2 && a2.hp<a2.maxHp){ const h=Math.round(dealt*perks.lifesteal); if(h>0){ a2.hp=Math.min(a2.maxHp,a2.hp+h); pop(a2,'+'+h,'heal'); } } }   // ⭐吸血：對敵造成任何傷害→補最低血隊友（普攻/技能/AoE 都吃，AoE 隊也能用）
+  if(perks.lifesteal>0 && dealt>0 && target.side==='foe'){ const a2=lowestHp(allies); if(a2){ const h=Math.round(dealt*perks.lifesteal); if(h>0){ healUnit(a2,h); pop(a2,'+'+h,'heal'); } } }   // ⭐吸血：對敵造成任何傷害→補最低血隊友（滿血則溢出轉護盾）
   if(target.hp<=0){ target.hp=0; target.alive=false; sfx('ko'); log(`　💀 ${target.emoji} ${target.name} 倒下`,'ko'); if(target.side==='foe'){ killHeal(); spreadPoison(target); } }
   paintAll();
   return dealt;
@@ -746,7 +750,7 @@ async function useSkill(u, ownSide, foeSide){
       const totalVuln=alive(foeSide).reduce((s,f)=>s+(f.vuln||0),0);
       if(totalVuln>0){ shake(); for(const f of alive(foeSide)){ fxOn(f,'❄️'); await dealDamage(f, Math.round(f.maxHp*0.022*totalVuln*(frenzyActive?2:1)), {}); } log(`　❄️ 冰霜 Nova！全場易傷共 ${totalVuln} 層、連鎖凍傷`,'sk'); }   // 😈 frenzy：Nova 額外吃攻擊×2（再經 dealDamage 受傷×2＝共×4，與普攻同級）
       break; }
-    case 'heal':   { const cand=alive(ownSide).filter(a=>a.id!=='helper'); const t=cand.sort((a,b)=>a.hp/a.maxHp-b.hp/b.maxHp)[0]; if(t){const h=Math.round(t.maxHp*0.5); t.hp=Math.min(t.maxHp,t.hp+h); auraOn(t,'rgba(74,208,125,.5)'); fxOn(t,'➕'); pop(t,'+'+h,'heal'); log(`　💧 治療 ${t.emoji} ${t.name} +${h}`,'he'); cand.forEach(a=>{ if(a!==t){ const hh=Math.round(a.maxHp*0.12); a.hp=Math.min(a.maxHp,a.hp+hh); if(hh>0){fxOn(a,'➕'); pop(a,'+'+hh,'heal');} } });} break; }   // 主補 50% + 全隊小補 12%（補師流續命引擎）
+    case 'heal':   { const cand=alive(ownSide).filter(a=>a.id!=='helper'); const t=cand.sort((a,b)=>a.hp/a.maxHp-b.hp/b.maxHp)[0]; if(t){const h=Math.round(t.maxHp*0.5); healUnit(t,h); auraOn(t,'rgba(74,208,125,.5)'); fxOn(t,'➕'); pop(t,'+'+h,'heal'); log(`　💧 治療 ${t.emoji} ${t.name} +${h}`,'he'); cand.forEach(a=>{ if(a!==t){ const hh=Math.round(a.maxHp*0.12); healUnit(a,hh); if(hh>0){fxOn(a,'➕'); pop(a,'+'+hh,'heal');} } });} break; }   // 主補 50% + 全隊小補 12%（滿血溢出轉護盾＝補師滿血也有用）
     case 'empower': alive(ownSide).forEach(a=>{a.rally=2; a.crit=Math.min(0.9,(a.crit||0)+0.22); auraOn(a,'rgba(201,169,110,.5)'); fxOn(a,'📈');}); log(`　📈 全隊 攻擊↑（數回合）、爆擊率永久↑`,'sk'); break;
     case 'haste': alive(ownSide).forEach(a=>{a.haste=HASTE_DUR; auraOn(a,'rgba(127,208,192,.55)'); fxOn(a,'💨');}); log(`　💨 全隊速寫加速！${HASTE_DUR} 回合內出手更快（封頂 ${SPD_CAP}）`,'sk'); break;   // 放招大幅加速（被動小幅在 effSpd）
     case 'dodge':  alive(ownSide).forEach(a=>{a.dodgeP=Math.min(0.9,(a.dodgeP||0)+0.9); a.dodgeT=Math.max(a.dodgeT||0,3); auraOn(a,'rgba(201,169,110,.55)'); fxOn(a,'🎯');}); log(`　🎯 薛丁格之態：3 回合內每次受擊 90% 機率閃避（與橘貓焦點 0.7 疊、封頂 99%）`,'sk'); break;   // ⭐ss-cat 全隊閃避 70%→90%（2026-06-15 Max）；與橘貓 pDodge 疊在 dealDamage 封頂 0.99
@@ -761,7 +765,7 @@ async function useSkill(u, ownSide, foeSide){
     case 'corrode': { await basicAttack(u,foeSide,1); alive(foeSide).forEach(t=>{ t.poison=(t.poison||0)+3; t.cPoison=(t.cPoison||0)+3; t.poisonT=Math.max(t.poisonT||0,4); auraOn(t,'rgba(150,220,120,.5)'); fxOn(t,'☠️'); }); log(`　☠️ 蝕刻液濺到全場，全體中毒（持續疊層、會蔓延）`,'sk'); break; }   // corrode 毒＝可擴散 cPoison
     case 'hypnosis': alive(foeSide).forEach(f=>{ f.frozen=Math.max(f.frozen,1); bumpVuln(f,1,5); auraOn(f,'rgba(155,109,214,.6)'); fxOn(f,'🌀'); });   // 還原 cd1：凍 1（間隔2>1 留 gap）＋易傷 +1   // ⛔ Max 鐵律：凍 1＋易傷 +1＋治癒（cd=1 每 2 回合放）。凍 1 < 放招間隔 2 ＝必留 1 回合 gap、不永久凍結（這就是 cd 能=1 的原因；上個 session 堅持凍 2 才被迫 cd2）。閉環命脈 frozen≤3 仍守（這裡只 1）。全場可疊易傷靠頻繁放疊量餵岱華 Nova
       // Max 一次性全隊小自癒：療癒 8%（明顯低於孟弦主補 50%／欣芸再生 13%×4，不搶補師定位）
-      alive(ownSide).forEach(a=>{ const h=Math.round(a.maxHp*0.08); if(h>0 && a.hp<a.maxHp){ a.hp=Math.min(a.maxHp,a.hp+h); fxOn(a,'➕'); pop(a,'+'+h,'heal'); } }); log(`　🌀 全場催眠！全場罰站 1 回合＋易傷 +1（可疊），全隊回 8%`,'sk'); break;
+      alive(ownSide).forEach(a=>{ const h=Math.round(a.maxHp*0.08); if(h>0){ healUnit(a,h); fxOn(a,'➕'); pop(a,'+'+h,'heal'); } }); log(`　🌀 全場催眠！全場罰站 1 回合＋易傷 +1（可疊），全隊回 8%（滿血轉護盾）`,'sk'); break;
     case 'focus': { u.focus=3; auraOn(u,'rgba(201,169,110,.6)'); fxOn(u,'🎯'); pop(u,'焦點！','miss'); log(`　🎯 ${u.emoji} ${u.name} 吸引全場火力 3 回合，打牠的敵人都會被疊易傷（沒命中也算）`,'sk'); break; }   // ⭐橘貓「全場焦點」：放招＝吸嘲 3 回合＋疊易傷（有 cd 節奏）；閃避是被動永久 70%（mkAlly pDodge）＝空窗也不會變軟皮。機制＝閃避（與 Joce 減傷、護甲護盾三種不同坦法）
     case 'overclock': { const t=alive(foeSide).sort((a,b)=>b.maxHp-a.maxHp)[0]; if(t){ let total=(await basicAttack(u,[t],2.5))||0; shake(true); if(t.alive){ const bonus=Math.round(t.maxHp*0.25*(frenzyActive?2:1)); fxOn(t,'⚡'); total+=(await dealDamage(t, bonus, {big:true,crit:true}))||0; } const sp=Math.round(total*0.25); if(sp>0){ for(const f of alive(foeSide)){ if(f===t)continue; fxOn(f,'⚡'); await dealDamage(f, sp, {}); } } log(`　⚡ 超頻過載！鎖最硬目標 ×2.5＋其最大血量 25%（可爆），傷害 25% 濺射全場`,'sk'); } u.overheat=true; break; }   // ⭐2.2→2.5、15%→25%maxHp、+濺射全場25%（打沒易傷的重甲會被吃掉＝有取捨）；過熱不動   // 😈 frenzy：超頻 maxHp%爆發額外吃攻擊×2   // 單體 anti-boss 核彈：鎖最高maxHp、×2.2＋敵maxHp 15%；與 splash(AoE)/detonate(引爆) 區隔
     case 'regen': alive(ownSide).forEach(a=>{ a.regen=Math.round(a.maxHp*0.13); a.regenT=4; auraOn(a,'rgba(94,200,160,.5)'); fxOn(a,'➕'); }); log(`　➕ 全隊再生（4 回合）`,'sk'); break;   // 8%→13%/回、3→4 回合（再生流續命）
@@ -803,14 +807,14 @@ async function endOfRound(){
   const ctrlActive = alive(foes).some(f=>f.frozen>0);
   for(const u of [...allies, ...foes]){
     if(!u.alive) continue;
-    if(ctrlActive && u.side==='ally' && u.hp<u.maxHp){ const h=Math.round(u.maxHp*0.07); if(h>0){ u.hp=Math.min(u.maxHp,u.hp+h); fxOn(u,'➕'); pop(u,'+'+h,'heal'); any=true; } }
+    if(ctrlActive && u.side==='ally'){ const h=Math.round(u.maxHp*0.07); if(h>0){ healUnit(u,h); fxOn(u,'➕'); pop(u,'+'+h,'heal'); any=true; } }
     // 再生王 niche：止血式自癒（吃已失血量的%、越受傷回越多）。此塊在毒 tic 之前 → (u.poison||0)<=0 讀的是「本回合身上還有沒有毒」(毒層數要到下面毒 tic 用盡才 --)，故中毒＝自癒整段跳過＝完全失效（不是減量）。⭐2026-06-14 Max：凍結「不再」關閉自癒——凍結已有易傷夠強，不能再把毒的價值也攬走＝再生王只逼毒、不逼凍。
     if((u.selfHeal||0)>0 && u.side==='foe'){
       if((u.poison||0)<=0){
         if(u.hp<u.maxHp){ let h=Math.max(Math.round((u.maxHp-u.hp)*u.selfHeal), Math.round(u.maxHp*0.06)); h=Math.min(h,u.maxHp-u.hp); if(h>0){ u.hp+=h; fxOn(u,'🩸'); pop(u,'+'+h,'heal'); any=true; } }   // ⭐2026-06-14 Max：移除「凍結停止自癒」——只有毒能關自癒（凍結已有易傷、不該再攬毒的價值）
       } else if(u.hp<u.maxHp){ fxOn(u,'🚫'); pop(u,'🚫癒','miss'); }   // 中毒→自癒完全失效（玩家學到機制；滿血不 spam）
     }
-    if(u.regen>0 && u.regenT>0){ const h=u.regen; u.hp=Math.min(u.maxHp,u.hp+h); u.regenT--; if(u.regenT<=0)u.regen=0; fxOn(u,'➕'); pop(u,'+'+h,'heal'); any=true; }
+    if(u.regen>0 && u.regenT>0){ const h=u.regen; healUnit(u,h); u.regenT--; if(u.regenT<=0)u.regen=0; fxOn(u,'➕'); pop(u,'+'+h,'heal'); any=true; }
     if(u.poison>0 && u.poisonT>0){
       const dmg=Math.max(1,Math.round(u.maxHp*0.01*u.poison*(1+(perks.poisonMul||0))));   // ⭐毒每層 2%→1% maxHp/回（降強度、換取淬毒爆擊開放多來源）
       u.hp-=dmg; u.poisonT--; if(u.poisonT<=0){ u.poison=Math.max(0,u.poison-1); u.cPoison=Math.min(u.cPoison||0,u.poison); if(u.poison>0)u.poisonT=2; }   // cPoison 跟著衰減、不超過總毒
@@ -862,7 +866,7 @@ const BOONS=[
   {id:'edge',      icon:'🗡️', name:'嗜血',     desc:'全隊爆擊率 +25%',               tags:['assassinate','empower','overclock'], apply:()=>perks.teamCrit+=0.25},
   {id:'heavy',     icon:'💥', name:'重擊',     desc:'爆擊傷害 +40%（封頂 +160%）',   tags:['assassinate','overclock'], apply:()=>perks.critDmg=Math.min(1.6,(perks.critDmg||0)+0.4)},
   {id:'allatk',    icon:'📈', name:'全軍突擊', desc:'全隊攻擊力提升（邊際遞減、趨近 +80%）', tags:[], apply:()=>{ const n=(perks.atkStacks||0)+1; perks.atkStacks=n; perks.atkMul=1+0.8*(1-Math.pow(0.6,n)); }},
-  {id:'iron',      icon:'🛡️', name:'鋼鐵之軀', desc:'全隊血量上限提升（邊際遞減、趨近 +50%、並回血）', tags:['shield','heal','regen'], apply:()=>{ const n=(perks.ironStacks||0)+1; perks.ironStacks=n; const prev=0.5*(1-Math.pow(0.55,n-1)), cur=0.5*(1-Math.pow(0.55,n)); alive(allies).forEach(a=>{ const add=Math.round((a.baseHp||a.maxHp)*(cur-prev)); a.maxHp+=add; a.hp+=add; }); }},
+  {id:'iron',      icon:'🛡️', name:'鋼鐵之軀', desc:'全隊血量上限提升（前 4 級各 +20%、第 5 級起邊際遞減 +5%）並回血', tags:['shield','heal','regen'], apply:()=>{ const n=(perks.ironStacks||0)+1; perks.ironStacks=n; const inc=(n<=4?0.20:0.05); alive(allies).forEach(a=>{ const add=Math.round((a.baseHp||a.maxHp)*inc); a.maxHp+=add; a.hp+=add; }); }},
   {id:'bloodheal', icon:'🧛', name:'浴血',     desc:'每當敵人倒下，全隊回復 7% 血量', tags:['shield','heal','regen','summon','assassinate'], apply:()=>perks.killHeal+=0.07},
   {id:'venom',     icon:'☠️', name:'劇毒',     desc:'中毒每層傷害 +60%',             tags:['corrode'], apply:()=>perks.poisonMul+=0.6},
   {id:'shatter',   icon:'💢', name:'破甲專精', desc:'易傷效果增強（每層多 +15%）',   tags:['armorbreak','hypnosis','freeze'], apply:()=>perks.vulnBonus+=0.15},
@@ -952,7 +956,7 @@ async function runBattle(){
     if(alive(allies).length===0){ return endBattle(curWave-1); }
     sfx('wave'); log(`<span class="win">✦ 第 ${curWave} 波清空！</span>`);
     // 波間：小回血、清護盾（過熱債跨波保留，下波誠實支付一回合休息），撐得久一點
-    alive(allies).forEach(a=>{ const h=Math.round(a.maxHp*(0.18+(perks.waveHeal||0))); a.hp=Math.min(a.maxHp,a.hp+h); a.shield=0; if(h>0){auraOn(a,'rgba(74,208,125,.4)'); pop(a,'+'+h,'heal');} });   // 波間回血 12%→18%（全隊續命底線）
+    alive(allies).forEach(a=>{ const h=Math.round(a.maxHp*(0.18+(perks.waveHeal||0))); healUnit(a,h); if(h>0){auraOn(a,'rgba(74,208,125,.4)'); pop(a,'+'+h,'heal');} });   // 波間回血 18%（溢出轉護盾）；⛔不再 shield=0（Max 2026-06-16：護盾跨波保留，否則每波開頭裸身被秒）
     paintAll(); await sleep(650);
     allies = allies.filter(a=>a.alive || a.id!=='helper');   // 只清死掉的小幫手；陣亡村民留屍體在場（未來可寫復活技能）
     if(curWave%5===0 && allies.length>0) await offerBoons();   // 打完魔王 → 抽強化
