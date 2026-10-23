@@ -169,11 +169,16 @@
     border:1px solid var(--line);border-radius:12px;padding:10px 14px}
   .lb li.me{border-color:var(--gold);box-shadow:0 0 0 2px rgba(201,169,110,.18)}
   .lb .rk{font-family:var(--serif);font-weight:900;font-size:16px;color:#8e96b5;width:30px;text-align:center;flex:none}
-  .lb li:nth-child(1) .rk,.lb li:nth-child(2) .rk,.lb li:nth-child(3) .rk{color:var(--gold);font-size:19px}
+  .lb li.top3 .rk{color:var(--gold);font-size:19px}
   .lb .who{font-weight:700;font-size:14.5px;flex:none;max-width:128px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .lb .comp{display:flex;gap:1px;font-size:18px;flex:1;overflow:hidden;min-width:0}
   .lb .wv{font-weight:700;color:#9aa1bd;font-size:13px;flex:none;white-space:nowrap}
   .lb .wv b{font-size:18px;color:var(--cyan)}
+  .lb .lb-more{font-size:12px;color:#6a7290;cursor:pointer;padding:2px 10px;margin-left:42px;user-select:none;transition:.15s}
+  .lb .lb-more:hover{color:var(--gold)}
+  .lb .lb-sub{display:none;flex-direction:column;gap:4px;margin-left:42px}
+  .lb .lb-sub.open{display:flex}
+  .lb .lb-sub li{padding:7px 12px;font-size:13px;opacity:.75;background:linear-gradient(160deg,rgba(11,15,32,.6),rgba(18,22,42,.6))}
   /* 賽季切換 tab（歷屆榜單）*/
   .lbtabs{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
   .lbtab{font-size:13px;padding:5px 13px;border-radius:50px;border:1px solid var(--line);background:rgba(201,169,110,.06);color:#9aa1bd;cursor:pointer;transition:.15s}
@@ -1216,14 +1221,35 @@ function renderLeaderboard(entries){
   const modeEl=$('#lbMode'); if(modeEl&&window.Leaderboard) modeEl.textContent = Leaderboard.mode==='live'?'即時公播':'本機';
   if(!entries||entries.length===0){ body.innerHTML='<li class="lb-empty">還沒有紀錄，當第一個衝榜的人。</li>'; return; }
   const me=window.Leaderboard?Leaderboard.getHandle():'';
-  body.innerHTML=entries.map((e,i)=>{
+  const MAX_PER_PLAYER=5;
+  const grouped=new Map();
+  for(const e of entries){
+    const k=e.handle||'匿名村民';
+    if(!grouped.has(k)) grouped.set(k,[]);
+    const arr=grouped.get(k);
+    if(arr.length<MAX_PER_PLAYER) arr.push(e);
+  }
+  const players=[...grouped.entries()].sort((a,b)=>(b[1][0].wave|0)-(a[1][0].wave|0)||(a[1][0].ts||0)-(b[1][0].ts||0));
+  const renderRow=(e,rank,isSub)=>{
     const comp=(e.teamEmojis||[]).map(x=>`<span>${esc(x)}</span>`).join('');
-    const mine = me && e.handle===me ? ' me':'';
-    return `<li class="${mine.trim()}"><span class="rk">${i+1}</span>`
-      +`<span class="who">${esc(e.handle||'匿名村民')}</span>`
+    const mine=me&&e.handle===me?' me':'';
+    const top3=rank!=null&&rank<=3?' top3':'';
+    return `<li class="${(mine+top3).trim()}">${rank!=null?`<span class="rk">${rank}</span>`:''}`
+      +`${isSub?'':'<span class="who">'+esc(e.handle||'匿名村民')+'</span>'}`
       +`<span class="comp">${comp}</span>`
       +`<span class="wv">第 <b>${e.wave|0}</b> 波</span></li>`;
-  }).join('');
+  };
+  let html='';
+  players.forEach(([handle,runs],i)=>{
+    html+=renderRow(runs[0],i+1,false);
+    if(runs.length>1){
+      html+=`<div class="lb-more" onclick="this.nextElementSibling.classList.toggle('open');this.textContent=this.nextElementSibling.classList.contains('open')?'▾ 收起':'▸ 還有 ${runs.length-1} 場紀錄'">▸ 還有 ${runs.length-1} 場紀錄</div>`;
+      html+='<div class="lb-sub">';
+      for(let j=1;j<runs.length;j++) html+=renderRow(runs[j],null,true);
+      html+='</div>';
+    }
+  });
+  body.innerHTML=html;
 }
 /* 賽季切換：現役 S1 + 歷屆封存榜（beta）。tab 切換只換「檢視」的 collection，送分永遠進現役 */
 (function initSeasons(){

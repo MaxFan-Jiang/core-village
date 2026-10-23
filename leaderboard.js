@@ -24,7 +24,7 @@
     let subs = [];
     function read() { try { return JSON.parse(localStorage.getItem(LS_SCORES) || "[]"); } catch (e) { return []; } }
     function write(a) { localStorage.setItem(LS_SCORES, JSON.stringify(a.slice(0, 200))); }
-    function top() { return read().sort((a, b) => b.wave - a.wave || a.ts - b.ts).slice(0, 50); }
+    function top() { return read().sort((a, b) => b.wave - a.wave || a.ts - b.ts); }
     function emit() { const t = top(); subs.forEach((cb) => cb(t)); }
     window.addEventListener("storage", (e) => { if (e.key === LS_SCORES) emit(); }); // 跨分頁
     return {
@@ -43,7 +43,7 @@
     return {
       submit(entry) { return fs.addDoc(fs.collection(db, SUBMIT_COL), Object.assign({}, entry, { ts: fs.serverTimestamp() })); },
       subscribe(coll, cb) {
-        const q = fs.query(fs.collection(db, coll || SUBMIT_COL), fs.orderBy("wave", "desc"), fs.limit(50));
+        const q = fs.query(fs.collection(db, coll || SUBMIT_COL), fs.orderBy("wave", "desc"));
         return fs.onSnapshot(q, (snap) => {
           cb(snap.docs.map((d) => {
             const v = d.data();
